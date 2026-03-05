@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #080c10;
+  --surface: #0d1117;
+  --surface-2: #131920;
+  --border: #1e2d3d;
+  --text: #c9d1d9;
+  --text-dim: #6b7f94;
+  --solar: #f59e0b;
+  --solar-dim: rgba(245, 158, 11, 0.12);
+  --green: #3fb950;
+  --red: #f85149;
+  --blue: #58a6ff;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  margin: 0;
+  min-height: 100vh;
+}

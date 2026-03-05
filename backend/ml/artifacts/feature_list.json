@@ -1,0 +1,27 @@
+{
+  "phys_features": [
+    "irradiance_wm2",
+    "temp_module_c",
+    "temp_ambient_c",
+    "temp_delta_c",
+    "hour",
+    "minute"
+  ],
+  "clf_features": [
+    "plant_id",
+    "irradiance_wm2",
+    "temp_module_c",
+    "temp_ambient_c",
+    "temp_delta_c",
+    "expected_power_ac_kw",
+    "power_residual_kw",
+    "abs_residual_kw",
+    "delta_power_ac_kw",
+    "delta_irr_wm2",
+    "delta_temp_module_c",
+    "ac_dc_ratio",
+    "eff_irr_kw_per_wm2",
+    "hour",
+    "minute"
+  ]
+}

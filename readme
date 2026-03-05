@@ -1,0 +1,41 @@
+# Solar Monitoring System
+
+Sistema de monitoreo inteligente para planta solar fotovoltaica.
+
+## Arquitectura
+- FastAPI
+- PostgreSQL
+- ML (scikit-learn)
+- Docker
+- React + Tailwind
+
+## Servicios
+- solar_api
+- solar_publisher
+- solar_generator
+- solar_db
+- dashboard frontend
+
+## Cómo correr
+docker compose up --build
+
+## FrontEnd desde la carpeta
+npm install
+npm run dev
+
+solar-monitoring/
+│
+├── backend/
+│   ├── api/              # FastAPI app
+│   ├── ml/               # modelos y entrenamiento
+│   ├── ingestion/        # lógica ingest y validación
+│   ├── collector/        # polling externo (si lo agregas)
+│   └── db/
+│
+├── simulator/
+│   ├── inverter_api/
+│   └── physics_engine/
+│
+├── frontend/
+│
+└── docker-compose.yml

@@ -1,0 +1,75 @@
+{
+  "n_samples": 14010,
+  "n_train": 11207,
+  "n_test": 2803,
+  "class_distribution": {
+    "count": {
+      "0": 8777,
+      "1": 5233
+    },
+    "ratio": {
+      "0": 0.6265,
+      "1": 0.3735
+    }
+  },
+  "regression_mae": 5.007114,
+  "accuracy": 0.9818,
+  "precision": 0.9716,
+  "recall": 0.9843,
+  "f1": 0.9779,
+  "roc_auc": 0.9961,
+  "confusion_matrix": [
+    [
+      1625,
+      33
+    ],
+    [
+      18,
+      1127
+    ]
+  ],
+  "classification_report": {
+    "0": {
+      "precision": 0.9890444309190505,
+      "recall": 0.9800965018094089,
+      "f1-score": 0.9845501363223266,
+      "support": 1658.0
+    },
+    "1": {
+      "precision": 0.971551724137931,
+      "recall": 0.9842794759825327,
+      "f1-score": 0.9778741865509761,
+      "support": 1145.0
+    },
+    "accuracy": 0.981805208704959,
+    "macro avg": {
+      "precision": 0.9802980775284907,
+      "recall": 0.9821879888959708,
+      "f1-score": 0.9812121614366514,
+      "support": 2803.0
+    },
+    "weighted avg": {
+      "precision": 0.9818988193370377,
+      "recall": 0.981805208704959,
+      "f1-score": 0.9818230715744862,
+      "support": 2803.0
+    }
+  },
+  "feature_importances": {
+    "plant_id": 0.29936,
+    "temp_ambient_c": 0.20126,
+    "eff_irr_kw_per_wm2": 0.13296,
+    "power_residual_kw": 0.10396,
+    "ac_dc_ratio": 0.06644,
+    "abs_residual_kw": 0.05439,
+    "temp_module_c": 0.0419,
+    "expected_power_ac_kw": 0.0207,
+    "temp_delta_c": 0.01952,
+    "irradiance_wm2": 0.01812,
+    "delta_power_ac_kw": 0.01139,
+    "hour": 0.01113,
+    "delta_irr_wm2": 0.00898,
+    "delta_temp_module_c": 0.00815,
+    "minute": 0.00174
+  }
+}

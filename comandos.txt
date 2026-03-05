@@ -1,0 +1,187 @@
+# ============================================================
+#  SOLAR MONITORING — COMANDOS POWERSHELL
+# ============================================================
+#  Ejecutar siempre desde:
+#  cd C:\Users\User\Desktop\Solar-Monitoring
+# ============================================================
+
+
+# ────────────────────────────────────────────────────────────
+#  STACK COMPLETO
+# ────────────────────────────────────────────────────────────
+
+# Levantar todo (db + backend + simulator)
+docker compose up
+
+# Levantar en background (sin bloquear la terminal)
+docker compose up -d
+
+# Levantar y reconstruir imágenes (después de cambiar código)
+docker compose up --build
+
+# Levantar y reconstruir solo el backend
+docker compose up --build backend
+
+# Apagar todo (mantiene datos en DB)
+docker compose down
+
+# Apagar todo y BORRAR la base de datos (reset total)
+docker compose down -v
+
+
+# ────────────────────────────────────────────────────────────
+#  SERVICIOS INDIVIDUALES
+# ────────────────────────────────────────────────────────────
+
+# Reiniciar solo el backend (después de cambiar código sin rebuild)
+docker compose restart backend
+
+# Reiniciar solo la DB
+docker compose restart db
+
+# Ver logs del backend en vivo
+docker compose logs -f backend
+
+# Ver logs del simulador en vivo
+docker compose logs -f simulator
+
+# Ver logs de todos en vivo
+docker compose logs -f
+
+# Ver estado de todos los contenedores
+docker compose ps
+
+
+# ────────────────────────────────────────────────────────────
+#  SIMULADOR (puerto 9000)
+# ────────────────────────────────────────────────────────────
+
+# Ver estado del simulador
+Invoke-RestMethod -Uri "http://localhost:9000/status"
+
+# Arrancar generación continua
+Invoke-RestMethod -Uri "http://localhost:9000/start" -Method POST -ContentType "application/json" -Body "{}"
+
+# Detener generación continua
+Invoke-RestMethod -Uri "http://localhost:9000/stop" -Method POST -ContentType "application/json" -Body "{}"
+
+# Ejecutar N pasos manualmente (sin arrancar loop continuo)
+Invoke-RestMethod -Uri "http://localhost:9000/step" -Method POST -ContentType "application/json" -Body '{"n_steps": 10}'
+
+# Ejecutar 500 pasos de golpe (relleno rápido de datos)
+Invoke-RestMethod -Uri "http://localhost:9000/step" -Method POST -ContentType "application/json" -Body '{"n_steps": 500}'
+
+# Reset del simulador (borra CSV y checkpoint, requiere /stop primero)
+Invoke-RestMethod -Uri "http://localhost:9000/reset" -Method DELETE
+
+# Health check simulador
+Invoke-RestMethod -Uri "http://localhost:9000/health"
+
+
+# ────────────────────────────────────────────────────────────
+#  BACKEND (puerto 8000)
+# ────────────────────────────────────────────────────────────
+
+# Health check backend
+Invoke-RestMethod -Uri "http://localhost:8000/health"
+
+# Ver resumen general
+Invoke-RestMethod -Uri "http://localhost:8000/dashboard/summary"
+
+# Ver resumen por planta (1, 2 o 3)
+Invoke-RestMethod -Uri "http://localhost:8000/dashboard/summary?plant_id=1"
+
+# Ver alertas de falla
+Invoke-RestMethod -Uri "http://localhost:8000/dashboard/alerts"
+
+# Ver alertas por planta y probabilidad mínima
+Invoke-RestMethod -Uri "http://localhost:8000/dashboard/alerts?plant_id=1&min_proba=0.5"
+
+# Ver timeseries
+Invoke-RestMethod -Uri "http://localhost:8000/dashboard/timeseries"
+
+# Ver timeseries por planta
+Invoke-RestMethod -Uri "http://localhost:8000/dashboard/timeseries?plant_id=2"
+
+# Ver documentación API interactiva (abrir en navegador)
+Start-Process "http://localhost:8000/docs"
+
+
+# ────────────────────────────────────────────────────────────
+#  BASE DE DATOS (puerto 5432)
+# ────────────────────────────────────────────────────────────
+
+# Conectarse a la DB con psql (dentro del contenedor)
+docker compose exec db psql -U solar_user -d solar_db
+
+# Contar registros en solar_readings
+docker compose exec db psql -U solar_user -d solar_db -c "SELECT COUNT(*) FROM solar_readings;"
+
+# Contar predicciones en ai_predictions
+docker compose exec db psql -U solar_user -d solar_db -c "SELECT COUNT(*) FROM ai_predictions;"
+
+# Ver distribución de fallas
+docker compose exec db psql -U solar_user -d solar_db -c "SELECT fault_pred, COUNT(*) FROM ai_predictions GROUP BY fault_pred;"
+
+# Ver últimos 5 registros
+docker compose exec db psql -U solar_user -d solar_db -c "SELECT ts, plant_id, power_ac_kw FROM solar_readings ORDER BY ts DESC LIMIT 5;"
+
+# Ver últimas predicciones
+docker compose exec db psql -U solar_user -d solar_db -c "SELECT reading_id, fault_proba, fault_pred FROM ai_predictions ORDER BY created_at DESC LIMIT 5;"
+
+# Borrar SOLO las predicciones (mantiene lecturas)
+docker compose exec db psql -U solar_user -d solar_db -c "TRUNCATE ai_predictions;"
+
+# Borrar TODO (lecturas + predicciones)
+docker compose exec db psql -U solar_user -d solar_db -c "TRUNCATE solar_readings CASCADE;"
+
+
+# ────────────────────────────────────────────────────────────
+#  ML TRAINER
+# ────────────────────────────────────────────────────────────
+
+# Construir imagen del trainer (solo primera vez o si cambia el código)
+docker compose build ml-trainer
+
+# Entrenar modelo (la DB debe tener datos)
+docker compose --profile train run --rm ml-trainer
+
+# Ver métricas del último entrenamiento
+docker compose run --rm --no-deps ml-trainer cat backend/ml/artifacts/metrics.json
+
+
+# ────────────────────────────────────────────────────────────
+#  FLUJO TÍPICO DE USO
+# ────────────────────────────────────────────────────────────
+
+# 1. Levantar stack
+docker compose up -d
+
+# 2. Generar datos iniciales (96 pasos = 1 día simulado por planta)
+Invoke-RestMethod -Uri "http://localhost:9000/step" -Method POST -ContentType "application/json" -Body '{"n_steps": 96}'
+
+# 3. Arrancar simulación continua
+Invoke-RestMethod -Uri "http://localhost:9000/start" -Method POST -ContentType "application/json" -Body "{}"
+
+# 4. (Cuando tengas suficientes datos) Entrenar modelos
+docker compose --profile train run --rm ml-trainer
+
+# 5. Reiniciar backend para cargar modelos nuevos
+docker compose restart backend
+
+# 6. Ver dashboard
+Start-Process "http://localhost:3000"
+
+
+# ────────────────────────────────────────────────────────────
+#  GENERACIÓN MASIVA DE DATOS
+# ────────────────────────────────────────────────────────────
+
+# Genera 10,000 pasos de golpe (= 30,000 registros con 3 plantas)
+Invoke-RestMethod -Uri "http://localhost:9000/step" -Method POST -ContentType "application/json" -Body '{"n_steps": 10000}'
+
+# 2M registros / 3 plantas = 666,666 pasos → 67 llamadas de 10,000
+# Repite el comando anterior hasta tener los registros que necesitas
+
+# Verificar cuántos registros tienes en la DB
+docker compose exec db psql -U solar_user -d solar_db -c "SELECT COUNT(*) FROM solar_readings;"

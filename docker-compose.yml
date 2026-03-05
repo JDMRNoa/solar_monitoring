@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+
+  db:
+    image: postgres:15
+    container_name: solar-monitoring-db-1
+    environment:
+      POSTGRES_DB: solar_db
+      POSTGRES_USER: solar_user
+      POSTGRES_PASSWORD: solar_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U solar_user -d solar_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg2://solar_user:solar_pass@db:5432/solar_db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/ml/artifacts:/app/backend/ml/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  simulator:
+    build: ./solar_simulator
+    container_name: solar-simulator
+    depends_on:
+      - backend
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./solar_simulator/output:/app/output
+    environment:
+      SOLAR_API_URL: "http://backend:8000"
+      SOLAR_INGEST_ENDPOINT: "/ingest_batch"
+      SOLAR_BATCH_SIZE: "250"
+      SOLAR_N_PLANTS: "3"
+      SOLAR_FAULT_LEVEL: "2"
+      SOLAR_STEP_DELAY_S: "2.0"
+      SOLAR_START_TS: "2025-01-01T00:00:00"
+      AUTOSTART: "false"
+      SOLAR_OUTPUT_DIR: "/app/output"
+    restart: "no"
+
+  ml-trainer:
+    build:
+      context: .
+      dockerfile: backend/ml/Dockerfile.trainer
+    environment:
+      DATABASE_URL: postgresql+psycopg2://solar_user:solar_pass@db:5432/solar_db
+    volumes:
+      - ./backend/ml/artifacts:/app/backend/ml/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    profiles:
+      - train
+
+volumes:
+  postgres_data:

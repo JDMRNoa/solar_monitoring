@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Dependencias del trainer
+COPY backend/ml/requirements-ml.txt .
+RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements-ml.txt
+
+# Copia todo el backend (necesita backend/ml/ y backend/__init__.py)
+COPY backend/ ./backend/
+
+# Directorio de artefactos (montar como volumen para persistir)
+RUN mkdir -p /app/backend/ml/artifacts
+
+ENV PYTHONPATH=/app
+
+CMD ["python", "-m", "backend.ml.train_from_db"]

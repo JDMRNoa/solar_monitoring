@@ -1,0 +1,556 @@
+import { useRef, useEffect, useState, useCallback } from 'react'
+import { useLiveWeather, type LivePlantData } from '../hooks/useLiveWeather'
+
+// ── Constantes ────────────────────────────────────────────────────────────────
+
+const PLANT_META = [
+  { id: 1, name: 'Planta Caribe',  location: 'Barranquilla', capacity_kw: 200, panel_count: 500, inverter_count: 6 },
+  { id: 2, name: 'Planta Andina',  location: 'Bogotá',       capacity_kw: 80,  panel_count: 200, inverter_count: 3 },
+  { id: 3, name: 'Planta Paisa',   location: 'Medellín',     capacity_kw: 150, panel_count: 380, inverter_count: 5 },
+]
+
+const FAULT_INFO: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  inverter_derate: { label: 'Inverter Derate',  icon: '⚡', color: '#ff5722', bg: 'rgba(255,87,34,0.12)'  },
+  sensor_flatline: { label: 'Sensor Flatline',  icon: '📡', color: '#9c27b0', bg: 'rgba(156,39,176,0.12)' },
+  string_fault:    { label: 'String Fault',     icon: '🔌', color: '#f44336', bg: 'rgba(244,67,54,0.12)'  },
+  grid_disconnect: { label: 'Grid Disconnect',  icon: '🔋', color: '#e91e63', bg: 'rgba(233,30,99,0.12)'  },
+  mppt_failure:    { label: 'MPPT Failure',     icon: '📉', color: '#ff9800', bg: 'rgba(255,152,0,0.12)'  },
+  partial_shading: { label: 'Partial Shading',  icon: '🌥', color: '#607d8b', bg: 'rgba(96,125,139,0.12)' },
+  panel_soiling:   { label: 'Panel Soiling',    icon: '🟫', color: '#ffd600', bg: 'rgba(255,214,0,0.12)'  },
+  pid_effect:      { label: 'PID Effect',       icon: '📶', color: '#ff6f00', bg: 'rgba(255,111,0,0.12)'  },
+}
+
+const SEV_COLORS: Record<number, string> = { 1: '#aaa', 2: '#ffd600', 3: '#ff9800', 4: '#ff5722', 5: '#f44336' }
+
+interface LogEntry {
+  ts: string
+  plant: string
+  msg: string
+  severity: number
+  type: string
+}
+
+// ── Sparkline ─────────────────────────────────────────────────────────────────
+
+function Sparkline({ history, maxKw }: { history: number[]; maxKw: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const c = ref.current
+    if (!c || history.length < 2) return
+    const ctx = c.getContext('2d')!
+    const w = c.offsetWidth || 220
+    const h = c.offsetHeight || 52
+    c.width = w; c.height = h
+    ctx.clearRect(0, 0, w, h)
+    const pts = history.slice(-48)
+    const max = Math.max(...pts, maxKw * 0.01)
+    const dx = w / (pts.length - 1)
+    const grad = ctx.createLinearGradient(0, 0, 0, h)
+    grad.addColorStop(0, 'rgba(0,212,255,0.28)')
+    grad.addColorStop(1, 'rgba(0,212,255,0.0)')
+    ctx.beginPath()
+    pts.forEach((v, i) => {
+      const x = i * dx
+      const y = h - (v / max) * (h * 0.82) - 4
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+    })
+    ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5; ctx.stroke()
+    ctx.lineTo((pts.length - 1) * dx, h); ctx.lineTo(0, h); ctx.closePath()
+    ctx.fillStyle = grad; ctx.fill()
+  }, [history, maxKw])
+  return <canvas ref={ref} style={{ width: '100%', height: '100%', display: 'block' }} />
+}
+
+// ── Panel Cells ───────────────────────────────────────────────────────────────
+
+function PanelArray({ reading, meta }: { reading: LivePlantData | null; meta: typeof PLANT_META[0] }) {
+  const pAc = reading?.power_ac_kw ?? 0
+  const irr = reading?.irradiance_wm2 ?? 0
+  const isNight = irr < 10
+  const ft = reading?.fault_type ?? ''
+  const loadRatio = Math.min(1, pAc / meta.capacity_kw)
+  const soiling = reading?.soiling ?? 0
+
+  const getCellStyle = (i: number): React.CSSProperties => {
+    if (!reading || isNight) return { background: '#0d1117' }
+    if (ft === 'grid_disconnect' && (reading.fault_severity ?? 0) > 3)
+      return { background: '#3a1a1a', boxShadow: '0 0 3px rgba(255,68,68,0.4)' }
+    if (ft === 'partial_shading')
+      return i < 12
+        ? { background: '#0a0f15', opacity: 0.4 }
+        : loadRatio > 0.6
+          ? { background: 'linear-gradient(135deg,#1565c0,#0d47a1)', boxShadow: '0 0 4px rgba(21,101,192,0.5)' }
+          : { background: 'linear-gradient(135deg,#1a4a7a,#0d3060)' }
+    if (ft === 'string_fault')
+      return i < 8
+        ? { background: '#3a1a1a', boxShadow: '0 0 3px rgba(255,68,68,0.4)' }
+        : { background: 'linear-gradient(135deg,#1a4a7a,#0d3060)' }
+    if (loadRatio > 0.65)
+      return { background: 'linear-gradient(135deg,#1565c0,#0d47a1)', boxShadow: '0 0 4px rgba(21,101,192,0.5)' }
+    if (loadRatio > 0.15) return { background: 'linear-gradient(135deg,#1a4a7a,#0d3060)' }
+    if (irr > 0)           return { background: '#1a3a5c' }
+    return { background: '#0d1117' }
+  }
+
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: 'repeat(10,1fr)', gap: '3px',
+      padding: '10px', background: '#080c10', borderRadius: '4px',
+      border: '1px solid var(--border)', position: 'relative',
+    }}>
+      {Array.from({ length: 40 }).map((_, i) => (
+        <div key={i} style={{
+          aspectRatio: '1.4/1', borderRadius: '2px',
+          transition: 'background 0.5s, opacity 0.5s',
+          ...getCellStyle(i),
+        }} />
+      ))}
+      {soiling > 0.05 && (
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none', borderRadius: '3px',
+          background: `rgba(100,60,10,${Math.min(soiling * 0.55, 0.5)})`,
+          transition: 'background 1s',
+        }} />
+      )}
+    </div>
+  )
+}
+
+// ── Inverter Row ──────────────────────────────────────────────────────────────
+
+function InverterRow({ reading, meta }: { reading: LivePlantData | null; meta: typeof PLANT_META[0] }) {
+  const pAc = reading?.power_ac_kw ?? 0
+  const ft = reading?.fault_type ?? ''
+  const loadPerInv = meta.capacity_kw / meta.inverter_count
+
+  return (
+    <div style={{ display: 'flex', gap: '6px', padding: '0 16px 12px' }}>
+      {Array.from({ length: meta.inverter_count }).map((_, i) => {
+        let invPow = reading ? pAc / meta.inverter_count : 0
+        let border = 'rgba(0,230,118,0.3)', bg = 'transparent', color = 'var(--text)'
+        if (ft === 'inverter_derate' && i < Math.ceil(meta.inverter_count / 2)) {
+          invPow *= 0.4; border = '#ffd600'; bg = 'rgba(255,214,0,0.08)'; color = '#ffd600'
+        } else if (ft === 'grid_disconnect') {
+          border = '#f44336'; bg = 'rgba(244,67,54,0.08)'; color = '#f44336'; invPow = 0
+        } else if (reading?.label_is_fault && (reading.fault_severity ?? 0) > 3 && i === 0) {
+          border = '#f44336'; bg = 'rgba(244,67,54,0.08)'; color = '#f44336'
+        }
+        const pct = loadPerInv > 0 ? Math.round((invPow / loadPerInv) * 100) : 0
+        return (
+          <div key={i} style={{
+            flex: 1, background: bg || '#0a0e14',
+            border: `1px solid ${border}`, borderRadius: '3px',
+            padding: '5px 6px', textAlign: 'center', fontSize: '0.60rem', transition: 'all 0.4s',
+          }}>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.55rem', textTransform: 'uppercase' }}>INV {i + 1}</div>
+            <div style={{ fontSize: '0.78rem', fontWeight: 700, color }}>{reading ? pct + '%' : '–'}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Weather Bar ───────────────────────────────────────────────────────────────
+
+function WeatherBar({ data }: { data: Record<number, LivePlantData> }) {
+  const r = Object.values(data)[0]
+  if (!r) return (
+    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+      Sin datos de clima en tiempo real — arranca el simulador.
+    </div>
+  )
+
+  const cloudPct = r.cloud_cover != null ? Math.round(r.cloud_cover * 100) : null
+  const soilingPct = r.soiling != null ? Math.round(r.soiling * 100) : null
+
+  return (
+    <div style={{
+      display: 'flex', gap: '20px', padding: '10px 0 16px', flexWrap: 'wrap',
+      alignItems: 'center', borderBottom: '1px solid var(--border)', marginBottom: '20px',
+      fontSize: '0.68rem', color: 'var(--text-dim)',
+    }}>
+      <span style={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.60rem', flexShrink: 0 }}>
+        Condiciones
+      </span>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span>☁</span>
+        <span>Nubosidad:</span>
+        <div style={{ width: '60px', height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{
+            height: '100%', borderRadius: '2px', transition: 'width 1s',
+            background: 'linear-gradient(90deg,#4fc3f7,#81d4fa)',
+            width: cloudPct != null ? cloudPct + '%' : '0%',
+          }} />
+        </div>
+        <span>{cloudPct != null ? cloudPct + '%' : '–'}</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span>🌡</span>
+        <span>{r.temp_ambient_c != null ? r.temp_ambient_c.toFixed(1) + '°C' : '–'}</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <span>💨</span>
+        <span>{r.wind_ms != null ? r.wind_ms.toFixed(1) + ' m/s' : '–'}</span>
+      </div>
+
+      {soilingPct != null && soilingPct > 5 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>🟫</span>
+          <span style={{ color: soilingPct > 15 ? '#ffd600' : 'var(--text-dim)' }}>
+            Suciedad: {soilingPct}%
+          </span>
+        </div>
+      )}
+
+      {r.rain_active && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>🌧</span>
+          <span style={{ color: '#00d4ff' }}>Lluvia activa – limpieza paneles</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── ML Badge ──────────────────────────────────────────────────────────────────
+
+function MlBadge({ reading }: { reading: LivePlantData | null }) {
+  if (!reading?.fault_proba) return null
+  const pct = Math.round(reading.fault_proba * 100)
+  const color = pct > 80 ? '#f85149' : pct > 50 ? '#f59e0b' : '#3fb950'
+  return (
+    <div style={{
+      padding: '4px 12px', borderTop: '1px solid var(--border)',
+      display: 'flex', gap: '16px', fontSize: '0.62rem', color: 'var(--text-dim)',
+    }}>
+      <span>ML · Prob. Falla: <span style={{ color, fontWeight: 700 }}>{pct}%</span></span>
+      {reading.power_residual_kw != null && (
+        <span>Residual: <span style={{ color: Math.abs(reading.power_residual_kw) > 5 ? '#f59e0b' : 'var(--text)' }}>
+          {reading.power_residual_kw.toFixed(2)} kW
+        </span></span>
+      )}
+    </div>
+  )
+}
+
+// ── Plant Card ────────────────────────────────────────────────────────────────
+
+function PlantCard({ meta, reading, history, loading }: {
+  meta: typeof PLANT_META[0]
+  reading: LivePlantData | null
+  history: number[]
+  loading: boolean
+}) {
+  const isFault = reading?.label_is_fault === 1
+  const isNight = (reading?.irradiance_wm2 ?? 0) < 10
+  const ft = FAULT_INFO[reading?.fault_type ?? '']
+  const soilingPct = Math.round((reading?.soiling ?? 0) * 100)
+
+  const cardBorder = isFault ? '1px solid #f44336' : soilingPct > 15 ? '1px solid #ffd600' : '1px solid var(--border)'
+  const cardShadow = isFault ? '0 0 20px rgba(244,67,54,0.15)' : 'none'
+
+  let badgeText = loading ? '···' : isNight ? 'NOCHE' : 'OPERANDO'
+  let badgeBg = 'rgba(74,96,128,0.2)', badgeColor = 'var(--text-dim)', badgeBdr = 'var(--border)'
+  if (isFault && ft) {
+    badgeText = ft.label.toUpperCase()
+    badgeBg = ft.bg; badgeColor = ft.color; badgeBdr = ft.color + '66'
+  } else if (soilingPct > 15) {
+    badgeText = `SUCIO ${soilingPct}%`
+    badgeBg = 'rgba(255,214,0,0.15)'; badgeColor = '#ffd600'; badgeBdr = 'rgba(255,214,0,0.3)'
+  } else if (!isNight && reading) {
+    badgeBg = 'rgba(0,230,118,0.15)'; badgeColor = '#00e676'; badgeBdr = 'rgba(0,230,118,0.3)'
+  }
+
+  const metrics = [
+    { label: 'P. AC',     value: reading ? reading.power_ac_kw!.toFixed(1)               : '–', unit: 'kW'   },
+    { label: 'Irrad.',    value: reading ? Math.round(reading.irradiance_wm2!).toString() : '–', unit: 'W/m²' },
+    { label: 'T. Módulo', value: reading ? reading.temp_module_c!.toFixed(1)              : '–', unit: '°C'   },
+    { label: 'E. Hoy',    value: reading ? reading.energy_daily_kwh!.toFixed(1)           : '–', unit: 'kWh'  },
+  ]
+
+  return (
+    <div style={{
+      background: 'var(--surface-2)', border: cardBorder, borderRadius: '8px',
+      overflow: 'hidden', boxShadow: cardShadow,
+      animation: isFault ? 'fault-pulse 2s infinite' : 'none',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.9rem' }}>{meta.name}</span>
+          <span style={{
+            fontSize: '0.60rem', background: 'var(--border)', padding: '2px 8px',
+            borderRadius: '3px', color: 'var(--text-dim)', letterSpacing: '0.08em',
+          }}>{meta.location}</span>
+        </div>
+        <span style={{
+          fontSize: '0.62rem', padding: '3px 10px', borderRadius: '3px',
+          letterSpacing: '0.08em', fontWeight: 700, textTransform: 'uppercase',
+          background: badgeBg, color: badgeColor, border: `1px solid ${badgeBdr}`,
+        }}>{badgeText}</span>
+      </div>
+
+      {/* Panel array + metrics */}
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <PanelArray reading={reading} meta={meta} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px' }}>
+          {metrics.map(m => (
+            <div key={m.label} style={{
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: '4px', padding: '8px 10px',
+            }}>
+              <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>{m.label}</div>
+              <div style={{ fontSize: '1.0rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1 }}>{m.value}</div>
+              <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', marginTop: '2px' }}>{m.unit}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Sparkline */}
+        <div style={{
+          height: '56px', background: 'var(--bg)', borderRadius: '4px',
+          border: '1px solid var(--border)', overflow: 'hidden', position: 'relative',
+        }}>
+          <span style={{
+            position: 'absolute', top: '4px', left: '8px', fontSize: '0.58rem',
+            color: 'var(--text-dim)', zIndex: 2, letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}>Potencia AC (kW)</span>
+          <Sparkline history={history} maxKw={meta.capacity_kw} />
+        </div>
+      </div>
+
+      {/* Inverters */}
+      <InverterRow reading={reading} meta={meta} />
+
+      {/* ML badge */}
+      <MlBadge reading={reading} />
+
+      {/* Fault footer */}
+      <div style={{
+        padding: '8px 12px', borderTop: '1px solid var(--border)', fontSize: '0.68rem',
+        minHeight: '34px', display: 'flex', alignItems: 'center', gap: '8px',
+      }}>
+        {isFault && ft ? (
+          <>
+            <span style={{ fontSize: '14px', flexShrink: 0 }}>{ft.icon}</span>
+            <span style={{ color: ft.color, lineHeight: 1.4 }}>
+              {ft.label} · Severidad {reading?.fault_severity}/5
+            </span>
+          </>
+        ) : soilingPct > 5 ? (
+          <>
+            <span style={{ fontSize: '14px' }}>🟫</span>
+            <span style={{ color: '#ffd600' }}>
+              Suciedad: {soilingPct}% · {soilingPct > 20 ? 'Requiere limpieza' : 'Nivel normal'}
+            </span>
+          </>
+        ) : (
+          <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
+            {loading ? 'Conectando...' : isNight ? 'Sin generación nocturna.' : 'Sistema operando normalmente.'}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Summary Strip ─────────────────────────────────────────────────────────────
+
+function SummaryStrip({ data }: { data: Record<number, LivePlantData> }) {
+  const valid = Object.values(data)
+  const totalPow    = valid.reduce((s, r) => s + (r.power_ac_kw ?? 0), 0)
+  const totalEnergy = valid.reduce((s, r) => s + (r.energy_daily_kwh ?? 0), 0)
+  const faultCount  = valid.filter(r => r.label_is_fault).length
+
+  return (
+    <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      {[
+        { label: 'Potencia Total', value: totalPow.toFixed(1) + ' kW',       color: '#f59e0b' },
+        { label: 'Energía Hoy',    value: totalEnergy.toFixed(1) + ' kWh',   color: undefined  },
+        { label: 'Fallas Activas', value: String(faultCount),                color: faultCount > 0 ? '#f85149' : '#3fb950' },
+        { label: 'Online',         value: `${valid.length} / ${PLANT_META.length}`, color: undefined },
+      ].map(s => (
+        <div key={s.label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ fontSize: '0.60rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.label}</span>
+          <span style={{ fontSize: '1.05rem', fontWeight: 700, fontFamily: 'Syne, sans-serif', color: s.color ?? 'var(--text)' }}>{s.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Fault Log ─────────────────────────────────────────────────────────────────
+
+function FaultLog({ entries, onClear }: { entries: LogEntry[]; onClear: () => void }) {
+  const logRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (logRef.current) logRef.current.scrollTop = 0 }, [entries.length])
+
+  return (
+    <div style={{
+      background: 'var(--surface-2)', border: '1px solid var(--border)',
+      borderRadius: '8px', overflow: 'hidden', marginTop: '20px',
+    }}>
+      <div style={{
+        padding: '10px 16px', borderBottom: '1px solid var(--border)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: 'rgba(255,255,255,0.02)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.85rem' }}>
+            📋 Log de Fallas y Eventos
+          </span>
+          {entries.length > 0 && (
+            <span style={{
+              fontSize: '0.60rem', background: 'rgba(244,67,54,0.15)', color: '#f44336',
+              border: '1px solid rgba(244,67,54,0.3)', padding: '2px 8px', borderRadius: '10px',
+            }}>{entries.length}</span>
+          )}
+        </div>
+        <button onClick={onClear} style={{
+          background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)',
+          borderRadius: '4px', padding: '4px 12px', fontSize: '0.65rem',
+          fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer', letterSpacing: '0.05em',
+        }}>Limpiar</button>
+      </div>
+
+      <div ref={logRef} style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px 0' }}>
+        {entries.length === 0 ? (
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+            Sin eventos registrados. Los cambios de estado aparecerán aquí.
+          </div>
+        ) : entries.slice(0, 60).map((e, i) => {
+          const ft = FAULT_INFO[e.type]
+          return (
+            <div key={i} style={{
+              display: 'grid', gridTemplateColumns: '150px 90px 1fr 76px',
+              gap: '8px', padding: '5px 16px', fontSize: '0.65rem',
+              borderBottom: '1px solid rgba(30,45,61,0.5)',
+              animation: i === 0 ? 'slide-in 0.3s ease' : 'none',
+            }}>
+              <span style={{ color: 'var(--text-dim)' }}>{e.ts}</span>
+              <span style={{ color: '#00d4ff' }}>{e.plant}</span>
+              <span style={{ color: ft?.color ?? 'var(--text)' }}>
+                {ft?.icon ?? '⚠'} {e.msg}
+              </span>
+              <span style={{ textAlign: 'right', color: e.severity > 0 ? (SEV_COLORS[e.severity] ?? '#aaa') : '#3fb950' }}>
+                {e.severity > 0 ? `SEV ${e.severity}/5` : 'OK ✓'}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
+export default function PlantGrid() {
+  const { data: liveData, connected } = useLiveWeather()
+  const [histories, setHistories] = useState<Record<number, number[]>>({})
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
+  const prevFaults = useRef<Record<number, string>>({})
+
+  // Acumular sparkline history desde datos en vivo
+  useEffect(() => {
+    for (const r of Object.values(liveData)) {
+      setHistories(prev => ({
+        ...prev,
+        [r.plant_id]: [...(prev[r.plant_id] ?? []).slice(-47), r.power_ac_kw ?? 0],
+      }))
+
+      // Log de fallas
+      const meta = PLANT_META.find(m => m.id === r.plant_id)
+      if (!meta) continue
+      const prev = prevFaults.current[r.plant_id] ?? ''
+      const cur  = r.label_is_fault ? (r.fault_type ?? '') : ''
+      if (!prev && cur) {
+        const ft = FAULT_INFO[cur]
+        setLogEntries(e => [{
+          ts: new Date(r.ts ?? '').toLocaleString('es-CO'),
+          plant: meta.name,
+          msg: `${ft?.label ?? cur} – INICIO`,
+          severity: r.fault_severity ?? 1,
+          type: cur,
+        }, ...e].slice(0, 100))
+      } else if (prev && !cur) {
+        const ft = FAULT_INFO[prev]
+        setLogEntries(e => [{
+          ts: new Date(r.ts ?? '').toLocaleString('es-CO'),
+          plant: meta.name,
+          msg: `${ft?.label ?? prev} – RESUELTO`,
+          severity: 0,
+          type: prev,
+        }, ...e].slice(0, 100))
+      }
+      prevFaults.current[r.plant_id] = cur
+    }
+  }, [liveData])
+
+  const loading = Object.keys(liveData).length === 0
+
+  return (
+    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 32px' }}>
+
+      {/* Header */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+        marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '16px',
+        gap: '16px', flexWrap: 'wrap',
+      }}>
+        <div>
+          <h1 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '1.3rem', letterSpacing: '-0.02em', color: '#fff', margin: 0 }}>
+            PLANTAS SOLARES
+          </h1>
+          <p style={{ fontSize: '0.63rem', color: 'var(--text-dim)', marginTop: '4px', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            MONITOREO EN TIEMPO REAL · SSE
+            <span style={{
+              width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block',
+              background: connected ? '#3fb950' : '#f85149',
+            }} />
+            {connected ? 'CONECTADO' : 'RECONECTANDO...'}
+          </p>
+        </div>
+        <SummaryStrip data={liveData} />
+      </div>
+
+      {/* Weather bar — datos en tiempo real del simulador */}
+      <WeatherBar data={liveData} />
+
+      {/* Plant cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '20px' }}>
+        {PLANT_META.map((meta) => (
+          <PlantCard
+            key={meta.id}
+            meta={meta}
+            reading={liveData[meta.id] ?? null}
+            history={histories[meta.id] ?? []}
+            loading={loading}
+          />
+        ))}
+      </div>
+
+      {/* Fault log */}
+      <FaultLog entries={logEntries} onClear={() => setLogEntries([])} />
+
+      <style>{`
+        @keyframes fault-pulse {
+          0%,100% { box-shadow: 0 0 20px rgba(244,67,54,0.15); }
+          50%      { box-shadow: 0 0 35px rgba(244,67,54,0.30); }
+        }
+        @keyframes slide-in {
+          from { opacity: 0; transform: translateX(-8px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+      `}</style>
+    </div>
+  )
+}
