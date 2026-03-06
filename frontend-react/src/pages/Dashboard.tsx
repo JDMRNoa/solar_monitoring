@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
-import type { Summary, TimeseriesItem, AlertItem } from '../types'
-import { fetchSummary, fetchTimeseries, fetchAlerts } from '../lib/api'
+import type { Summary, TimeseriesItem, FaultPackage } from '../types'
+import { fetchSummary, fetchTimeseries, fetchFaultPackages } from '../lib/api'
 import { PowerChart, ResidualFaultChart } from '../components/Charts'
 import AlertsTable from '../components/AlertsTable'
 
@@ -116,21 +116,24 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
 
   const [summary, setSummary] = useState<Summary | null>(null)
   const [tsData, setTsData] = useState<TimeseriesItem[]>([])
-  const [alerts, setAlerts] = useState<AlertItem[]>([])
+  const [packages, setPackages] = useState<FaultPackage[]>([])
+
+
+  const [pendingLoad, setPendingLoad] = useState(false)
 
   const load = useCallback(async () => {
+    setPendingLoad(false)
     setState('loading')
     setError(null)
     try {
       const [s, ts, al] = await Promise.all([
         fetchSummary(plantId, hours),
         fetchTimeseries(plantId, hours),
-        fetchAlerts(plantId, hours, minProba),
+        fetchFaultPackages(plantId, hours, minProba),
       ])
       setSummary(s)
       setTsData(Array.isArray(ts) ? ts : [])
-      setAlerts(Array.isArray(al) ? al : [])
-      // last_ts viene del summary; fallback al último item de la serie
+      setPackages(Array.isArray(al) ? al : [])
       const lastTs = s.last_ts ?? (Array.isArray(ts) && ts.length > 0 ? ts[ts.length - 1].ts : null)
       onLastTimestamp?.(lastTs)
       setState('success')
@@ -138,7 +141,7 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
       setError(e instanceof Error ? e.message : String(e))
       setState('error')
     }
-  }, [plantId, hours, minProba])
+  }, [plantId, hours, minProba, onLastTimestamp])
 
   useEffect(() => { load() }, [load])
 
@@ -163,8 +166,17 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
         <Select
           label="PLANTA"
           value={plantId}
-          options={[1, 2, 3].map((n) => ({ label: `Planta ${n}`, value: n }))}
-          onChange={(v) => setPlantId(Number(v))}
+          options={[
+            { label: 'Planta 1 – Caribe (Barranquilla)',  value: 1 },
+            { label: 'Planta 2 – Andina (Bogotá)',        value: 2 },
+            { label: 'Planta 3 – Paisa (Medellín)',       value: 3 },
+            { label: 'Planta 4 – Valle (Cali)',           value: 4 },
+            { label: 'Planta 5 – Llanos (Villavicencio)', value: 5 },
+            { label: 'Planta 6 – Guajira (Riohacha)',     value: 6 },
+            { label: 'Planta 7 – Sierra Nevada',          value: 7 },
+            { label: 'Planta 8 – Boyacá (Tunja)',         value: 8 },
+          ]}
+          onChange={(v) => { setPendingLoad(true); setPlantId(Number(v)) }}
         />
         <Select
           label="PERÍODO"
@@ -177,7 +189,7 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
             { label: '6 meses', value: 4380 },
             { label: 'Todo',    value: 11000 },
           ]}
-          onChange={(v) => setHours(Number(v))}
+          onChange={(v) => { setPendingLoad(true); setHours(Number(v)) }}
         />
         <Select
           label="MIN. PROB. FALLA"
@@ -187,7 +199,7 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
             { label: '≥ 60%', value: 0.6 },
             { label: '≥ 80%', value: 0.8 },
           ]}
-          onChange={(v) => setMinProba(Number(v))}
+          onChange={(v) => { setPendingLoad(true); setMinProba(Number(v)) }}
         />
 
         <button
@@ -212,10 +224,10 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
         <div className="ml-auto flex items-center gap-2" style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>
           <span style={{
             width: '6px', height: '6px', borderRadius: '50%',
-            background: state === 'success' ? '#3fb950' : state === 'error' ? '#f85149' : '#6b7f94',
+            background: pendingLoad ? '#f59e0b' : state === 'success' ? '#3fb950' : state === 'error' ? '#f85149' : '#6b7f94',
             display: 'inline-block',
           }} />
-          {state === 'success' ? 'LIVE' : state === 'error' ? 'ERROR' : '—'}
+          {pendingLoad ? 'APLICANDO...' : state === 'success' ? 'LIVE' : state === 'error' ? 'ERROR' : '—'}
         </div>
       </div>
 
@@ -275,7 +287,7 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
           )}
 
           {/* Alerts */}
-          <AlertsTable alerts={alerts} />
+          <AlertsTable packages={packages} />
         </>
       )}
     </div>

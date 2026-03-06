@@ -135,3 +135,28 @@ def fetch_timeseries_by_plant(db: Session, plant_id: int, hours: int = None, lim
     result = db.execute(query, {"plant_id": plant_id, "limit": limit}).mappings().all()
     rows = [dict(row) for row in result]
     return list(reversed(rows))
+
+def fetch_raw_faults_by_plant(db: Session, plant_id: int, hours: int = None, min_proba: float = 0.0, limit: int = 5000):
+    """Trae todas las predicciones de falla para agruparlas en Python."""
+    query = text(f"""
+        SELECT
+            p.id,
+            r.ts,
+            r.plant_id,
+            p.fault_proba,
+            p.fault_pred,
+            p.expected_power_ac_kw,
+            p.power_residual_kw,
+            p.model_version,
+            p.created_at
+        FROM ai_predictions p
+        JOIN solar_readings r ON r.id = p.reading_id
+        WHERE p.fault_pred = 1
+          AND r.plant_id = :plant_id
+          AND p.fault_proba >= :min_proba
+          {_hours_clause(hours)}
+        ORDER BY r.ts ASC
+        LIMIT :limit
+    """)
+    result = db.execute(query, {"plant_id": plant_id, "min_proba": min_proba, "limit": limit}).mappings().all()
+    return [dict(row) for row in result]
