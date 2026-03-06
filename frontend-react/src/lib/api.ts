@@ -1,4 +1,4 @@
-import type { Summary, TimeseriesItem, AlertItem } from '../types'
+import type { Summary, TimeseriesItem, AlertItem, ExplainResult } from '../types'
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
@@ -12,7 +12,6 @@ export function fetchSummary(plant_id: number, hours: number): Promise<Summary> 
   return get<Summary>(`/dashboard/summary?plant_id=${plant_id}&hours=${hours}`)
 }
 
-// El backend devuelve { data: [...] }
 export async function fetchTimeseries(plant_id: number, hours: number): Promise<TimeseriesItem[]> {
   const res = await get<{ data?: TimeseriesItem[] } | TimeseriesItem[]>(
     `/dashboard/timeseries?plant_id=${plant_id}&hours=${hours}`
@@ -21,11 +20,14 @@ export async function fetchTimeseries(plant_id: number, hours: number): Promise<
   return (res as { data?: TimeseriesItem[] }).data ?? []
 }
 
-// El backend devuelve { data: [...] } o array directo
 export async function fetchAlerts(plant_id: number, hours: number, min_proba: number): Promise<AlertItem[]> {
   const res = await get<{ data?: AlertItem[] } | AlertItem[]>(
     `/dashboard/alerts?plant_id=${plant_id}&hours=${hours}&min_proba=${min_proba}`
   )
   if (Array.isArray(res)) return res
   return (res as { data?: AlertItem[] }).data ?? []
+}
+
+export function fetchExplain(prediction_id: number): Promise<ExplainResult> {
+  return get<ExplainResult>(`/explain/${prediction_id}`)
 }

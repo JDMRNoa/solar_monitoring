@@ -1,97 +1,3 @@
-# from __future__ import annotations
-
-# import json
-# import joblib
-# import pandas as pd
-# from pathlib import Path
-
-# from .features import (
-#     build_phys_features,
-#     build_clf_features,
-#     PHYS_FEATURES,
-#     CLF_FEATURES,
-# )
-
-# # ==========================
-# # Rutas artefactos
-# # ==========================
-
-# BASE_DIR = Path(__file__).resolve().parent
-# ARTIFACTS_DIR = BASE_DIR / "artifacts"
-
-# REG_MODEL_PATH = ARTIFACTS_DIR / "phys_reg.joblib"
-# CLF_MODEL_PATH = ARTIFACTS_DIR / "fault_clf.joblib"
-# FEATURE_LIST_PATH = ARTIFACTS_DIR / "feature_list.json"
-
-# # ==========================
-# # Cargar modelos
-# # ==========================
-
-# reg_model = joblib.load(REG_MODEL_PATH)
-# clf_model = joblib.load(CLF_MODEL_PATH)
-
-# with open(FEATURE_LIST_PATH, "r") as f:
-#     feature_config = json.load(f)
-
-# PHYS_FEATURES_JSON = feature_config["phys_features"]
-# CLF_FEATURES_JSON = feature_config["clf_features"]
-
-
-# # ==========================
-# # Predicción batch
-# # ==========================
-
-# def predict_batch(df: pd.DataFrame):
-
-#     df = df.copy()
-
-#     # 1️⃣ Features físicas
-#     X_reg_full = build_phys_features(df)
-
-#     missing_phys = [
-#         c for c in PHYS_FEATURES_JSON if c not in X_reg_full.columns
-#     ]
-#     if missing_phys:
-#         raise RuntimeError(f"Faltan phys_features: {missing_phys}")
-
-#     X_reg = X_reg_full[PHYS_FEATURES_JSON]
-
-#     # 2️⃣ Predicción física
-#     expected_power = reg_model.predict(X_reg)
-
-#     df["expected_power_ac_kw"] = expected_power
-#     df["power_residual_kw"] = df["power_ac_kw"] - df["expected_power_ac_kw"]
-#     df["abs_residual_kw"] = df["power_residual_kw"].abs()
-
-#     # 3️⃣ Features clasificador
-#     X_clf_full = build_clf_features(df)
-
-#     missing_clf = [
-#         c for c in CLF_FEATURES_JSON if c not in X_clf_full.columns
-#     ]
-#     if missing_clf:
-#         raise RuntimeError(f"Faltan clf_features: {missing_clf}")
-
-#     X_clf = X_clf_full[CLF_FEATURES_JSON]
-
-#     # 4️⃣ Clasificación
-#     fault_proba = clf_model.predict_proba(X_clf)[:, 1]
-#     fault_pred = clf_model.predict(X_clf)
-
-#     # 5️⃣ Salida (igual que antes)
-#     results = []
-
-#     for i in range(len(df)):
-#         results.append({
-#             "expected_power_ac_kw": float(df.iloc[i]["expected_power_ac_kw"]),
-#             "power_residual_kw": float(df.iloc[i]["power_residual_kw"]),
-#             "fault_proba": float(fault_proba[i]),
-#             "fault_pred": int(fault_pred[i]),
-#         })
-
-#     return results
-
-
 from __future__ import annotations
 
 import json
@@ -127,6 +33,16 @@ FEATURE_LIST_PATH = ARTIFACTS_DIR / "feature_list.json"
 _reg_model = None
 _clf_model = None
 _feature_config = None
+_shap_artifact  = None
+
+SHAP_PATH = ARTIFACTS_DIR / "shap_explainer.joblib"
+
+
+def get_shap_explainer() -> dict | None:
+    global _shap_artifact
+    if _shap_artifact is None and SHAP_PATH.exists():
+        _shap_artifact = joblib.load(SHAP_PATH)
+    return _shap_artifact
 
 
 def _models_ready() -> bool:
@@ -202,8 +118,12 @@ def predict_batch(df: pd.DataFrame):
     X_clf = X_clf_full[clf_features_json]
 
     # 4️⃣ Clasificación
+    # fault_proba = _clf_model.predict_proba(X_clf)[:, 1]
+    # fault_pred  = _clf_model.predict(X_clf)
     fault_proba = _clf_model.predict_proba(X_clf)[:, 1]
-    fault_pred  = _clf_model.predict(X_clf)
+
+    THRESHOLD = 0.65
+    fault_pred = (fault_proba >= THRESHOLD).astype(int)
 
     # 5️⃣ Salida
     results = []

@@ -1,0 +1,20 @@
+{
+  "running": false,
+  "step_count": 0,
+  "total_records": 0,
+  "total_faults": 0,
+  "fault_rate_pct": 0.0,
+  "last_ts": null,
+  "last_step_at": null,
+  "started_at": null,
+  "stopped_at": null,
+  "errors": 0,
+  "csv_path": "/app/output/solar_stream.csv",
+  "config": {
+    "step_delay_s": 2.0,
+    "n_plants": 3,
+    "fault_level": 1,
+    "api_target": "http://backend:8000",
+    "autostart": false
+  }
+}

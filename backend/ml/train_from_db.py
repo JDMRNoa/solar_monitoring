@@ -97,7 +97,7 @@ def train():
     train_df = pd.concat(train_parts).reset_index(drop=True)
     test_df  = pd.concat(test_parts).reset_index(drop=True)
 
-    print(f"\n Train: {len(train_df):,} | Test: {len(test_df):,}")
+    print(f"\n📊 Train: {len(train_df):,} | Test: {len(test_df):,}")
 
     # ==========================
     # REGRESIÓN (potencia esperada)
@@ -204,6 +204,26 @@ def train():
     }
 
     # ==========================
+    # SHAP TreeExplainer
+    # ==========================
+    print("\n🔍 Construyendo SHAP explainer...")
+    try:
+        import shap
+        explainer = shap.TreeExplainer(clf)
+        expected_value = (
+            float(explainer.expected_value[1])
+            if hasattr(explainer.expected_value, "__len__")
+            else float(explainer.expected_value)
+        )
+        joblib.dump(
+            {"explainer": explainer, "expected_value": expected_value, "feature_names": CLF_FEATURES},
+            ARTIFACT_DIR / "shap_explainer.joblib",
+        )
+        print("  SHAP explainer guardado")
+    except Exception as e:
+        print(f"  ⚠ SHAP no disponible: {e}")
+
+    # ==========================
     # Guardar artefactos
     # ==========================
     print("\n💾 Guardando artefactos...")
@@ -220,8 +240,8 @@ def train():
     with open(METRICS_PATH, "w") as f:
         json.dump(metrics, f, indent=2)
 
-    print(" Modelos guardados")
-    print(f"\n Métricas:")
+    print("✅ Modelos guardados")
+    print(f"\n📊 Métricas:")
     print(f"   Regresor MAE : {metrics['regression_mae']} kW")
     print(f"   Accuracy     : {metrics['accuracy']}")
     print(f"   Precision    : {metrics['precision']}")

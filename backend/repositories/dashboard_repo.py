@@ -43,9 +43,10 @@ def fetch_summary_by_plant(db: Session, plant_id: int, hours: int = None):
     return dict(result) if result else {}
 
 
-def fetch_alerts(db: Session, hours: int = None):
+def fetch_alerts(db: Session, min_proba: float = 0.3, hours: int = None):
     query = text(f"""
         SELECT
+            p.id,
             r.ts,
             r.plant_id,
             p.fault_proba,
@@ -56,17 +57,20 @@ def fetch_alerts(db: Session, hours: int = None):
             p.created_at
         FROM ai_predictions p
         JOIN solar_readings r ON r.id = p.reading_id
-        WHERE p.fault_pred = 1 {_hours_clause(hours, alias="r")}
+        WHERE p.fault_pred = 1
+          AND p.fault_proba >= :min_proba
+          {_hours_clause(hours)}
         ORDER BY p.created_at DESC
         LIMIT 20
     """)
-    result = db.execute(query).mappings().all()
+    result = db.execute(query, {"min_proba": min_proba}).mappings().all()
     return [dict(row) for row in result]
 
 
 def fetch_alerts_by_plant(db: Session, plant_id: int, min_proba: float = 0.3, hours: int = None):
     query = text(f"""
         SELECT
+            p.id,
             r.ts,
             r.plant_id,
             p.fault_proba,
@@ -80,7 +84,7 @@ def fetch_alerts_by_plant(db: Session, plant_id: int, min_proba: float = 0.3, ho
         WHERE p.fault_pred = 1
           AND r.plant_id = :plant_id
           AND p.fault_proba >= :min_proba
-          {_hours_clause(hours, alias="r")}
+          {_hours_clause(hours)}
         ORDER BY p.created_at DESC
         LIMIT 20
     """)

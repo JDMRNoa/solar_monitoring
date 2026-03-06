@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.api.routers import ingestion, dashboard_routers, live
+from backend.api.routers import ingestion, dashboard_routers, live, explain
 
 app = FastAPI(title="Solar Monitoring AI")
 
@@ -18,3 +18,4 @@ def health():
 app.include_router(ingestion.router)
 app.include_router(dashboard_routers.router)
 app.include_router(live.router)
+app.include_router(explain.router)

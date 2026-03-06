@@ -21,12 +21,23 @@ services:
       timeout: 5s
       retries: 10
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: solar-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg2://solar_user:solar_pass@db:5432/solar_db
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: phi3.5:mini
     ports:
       - "8000:8000"
     volumes:
@@ -34,6 +45,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      ollama:
+        condition: service_started
     restart: unless-stopped
 
   simulator:
@@ -50,7 +63,7 @@ services:
       SOLAR_INGEST_ENDPOINT: "/ingest_batch"
       SOLAR_BATCH_SIZE: "250"
       SOLAR_N_PLANTS: "3"
-      SOLAR_FAULT_LEVEL: "2"
+      SOLAR_FAULT_LEVEL: "1"
       SOLAR_STEP_DELAY_S: "2.0"
       SOLAR_START_TS: "2025-01-01T00:00:00"
       AUTOSTART: "false"
@@ -74,3 +87,4 @@ services:
 
 volumes:
   postgres_data:
+  ollama_data:

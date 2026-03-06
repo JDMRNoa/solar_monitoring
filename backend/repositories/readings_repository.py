@@ -1,28 +1,3 @@
-# from sqlalchemy import text
-# from backend.db.session import engine
-
-# def insert_reading(row):
-#     sql = text("""
-#         INSERT INTO solar_readings (
-#             ts, plant_id, irradiance_wm2, temp_ambient_c, temp_module_c,
-#             power_ac_kw, power_dc_kw, energy_daily_kwh, energy_total_kwh,
-#             label_is_fault, fault_type, fault_severity
-#         )
-#         VALUES (
-#             :ts, :plant_id, :irradiance_wm2, :temp_ambient_c, :temp_module_c,
-#             :power_ac_kw, :power_dc_kw, :energy_daily_kwh, :energy_total_kwh,
-#             :label_is_fault, :fault_type, :fault_severity
-#         )
-#         RETURNING id;
-#     """)
-
-#     with engine.begin() as conn:
-#         return conn.execute(sql, row).scalar_one()
-
-
-# def insert_batch_readings(rows):
-#     return [insert_reading(r) for r in rows]
-
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -34,11 +9,13 @@ _INSERT_READING_SQL = text("""
     INSERT INTO solar_readings (
         ts, plant_id, irradiance_wm2, temp_ambient_c, temp_module_c,
         power_ac_kw, power_dc_kw, energy_daily_kwh, energy_total_kwh,
+        expected_power_ac_kw,
         label_is_fault, fault_type, fault_severity
     )
     VALUES (
         :ts, :plant_id, :irradiance_wm2, :temp_ambient_c, :temp_module_c,
         :power_ac_kw, :power_dc_kw, :energy_daily_kwh, :energy_total_kwh,
+        :expected_power_ac_kw,
         :label_is_fault, :fault_type, :fault_severity
     )
     RETURNING id
@@ -58,18 +35,19 @@ _INSERT_PREDICTION_SQL = text("""
 
 def insert_reading(db: Session, r: Dict[str, Any]) -> int:
     return db.execute(_INSERT_READING_SQL, {
-        "ts":               r["ts"],
-        "plant_id":         r["plant_id"],
-        "irradiance_wm2":   r.get("irradiance_wm2"),
-        "temp_ambient_c":   r.get("temp_ambient_c"),
-        "temp_module_c":    r.get("temp_module_c"),
-        "power_ac_kw":      r.get("power_ac_kw"),
-        "power_dc_kw":      r.get("power_dc_kw"),
-        "energy_daily_kwh": r.get("energy_daily_kwh"),
-        "energy_total_kwh": r.get("energy_total_kwh"),
-        "label_is_fault":   r.get("label_is_fault", 0),
-        "fault_type":       r.get("fault_type", ""),
-        "fault_severity":   r.get("fault_severity", 0),
+        "ts":                   r["ts"],
+        "plant_id":             r["plant_id"],
+        "irradiance_wm2":       r.get("irradiance_wm2"),
+        "temp_ambient_c":       r.get("temp_ambient_c"),
+        "temp_module_c":        r.get("temp_module_c"),
+        "power_ac_kw":          r.get("power_ac_kw"),
+        "power_dc_kw":          r.get("power_dc_kw"),
+        "energy_daily_kwh":     r.get("energy_daily_kwh"),
+        "energy_total_kwh":     r.get("energy_total_kwh"),
+        "expected_power_ac_kw": r.get("expected_power_ac_kw"),  # ground truth simulador
+        "label_is_fault":       r.get("label_is_fault", 0),
+        "fault_type":           r.get("fault_type", ""),
+        "fault_severity":       r.get("fault_severity", 0),
     }).scalar_one()
 
 

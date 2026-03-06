@@ -5,3 +5,4 @@ build/
 .env
 *.joblib
 backend/ml/artifacts/*.joblib
+.gitignore
