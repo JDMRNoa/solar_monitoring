@@ -158,16 +158,31 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
                 </div>
               </div>
 
-              {/* ── Tipo de falla inferido ── */}
+              {/* ── Tipo de falla ── */}
               {result.fault_type_label && (
-                <div style={{ background: `${faultColor}0d`, border: `1px solid ${faultColor}33`, borderRadius: '6px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: faultColor, flexShrink: 0 }} />
-                  <div>
-                    <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>TIPO DE FALLA PROBABLE</p>
-                    <p style={{ fontSize: '0.82rem', fontFamily: 'Syne, sans-serif', color: faultColor, margin: '2px 0 0', fontWeight: 600 }}>
-                      {result.fault_type_label}
-                    </p>
+                <div style={{ background: `${faultColor}0d`, border: `1px solid ${faultColor}33`, borderRadius: '6px', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: faultColor, flexShrink: 0 }} />
+                    <div>
+                      <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>
+                        TIPO DE FALLA
+                        {result.fault_type_source === 'model'
+                          ? ' · CLASIFICADOR ML'
+                          : ' · REGLAS FÍSICAS'}
+                      </p>
+                      <p style={{ fontSize: '0.82rem', fontFamily: 'Syne, sans-serif', color: faultColor, margin: '2px 0 0', fontWeight: 600 }}>
+                        {result.fault_type_label}
+                      </p>
+                    </div>
                   </div>
+                  {result.fault_type_confidence != null && (
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>CONFIANZA</p>
+                      <p style={{ fontSize: '0.9rem', fontFamily: 'Syne, sans-serif', color: faultColor, margin: '2px 0 0', fontWeight: 700 }}>
+                        {(result.fault_type_confidence * 100).toFixed(0)}%
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

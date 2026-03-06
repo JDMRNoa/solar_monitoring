@@ -33,19 +33,21 @@ export interface AlertItem {
 
 // ── XAI (/explain/{prediction_id}) ───────────────────────────────────────────
 export interface ExplainResult {
-  prediction_id:        number
-  cached:               boolean
-  fault_proba:          number | null
-  expected_value:       number | null
-  top_reasons:          Record<string, number>
-  explanation_text:     string
-  // Nuevos campos
-  inferred_fault_type:  string | null
-  fault_type_label:     string | null
-  analysis_text:        string | null
-  recommendation_text:  string | null
-  reading_count:        number | null
-  duration_minutes:     number | null
+  prediction_id:           number
+  cached:                  boolean
+  fault_proba:             number | null
+  expected_value:          number | null
+  top_reasons:             Record<string, number>
+  explanation_text:        string
+  inferred_fault_type:     string | null
+  fault_type_label:        string | null
+  fault_type_source:       'model' | 'rules' | null  // 'model' = clasificador ML, 'rules' = heurísticas
+  fault_type_confidence:   number | null             // 0-1, solo cuando source='model'
+  fault_type_all_probas:   Record<string, number> | null
+  analysis_text:           string | null
+  recommendation_text:     string | null
+  reading_count:           number | null
+  duration_minutes:        number | null
 }
 
 // ── Params ───────────────────────────────────────────────────────────────────

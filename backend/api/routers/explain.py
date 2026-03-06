@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.db.session import get_db
-from backend.ml.registry import get_shap_explainer
+from backend.ml.registry import get_shap_explainer, predict_fault_type
 from backend.ml.features import build_clf_features
 
 import pandas as pd
@@ -22,7 +22,7 @@ OLLAMA_URL   = os.getenv("OLLAMA_URL", "http://ollama:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "phi3.5:mini")
 CONTEXT_ROWS = 6
 
-# ── Traducciones de features ──────────────────────────────────────────────────
+# ── Labels y playbook ─────────────────────────────────────────────────────────
 
 _FEATURE_LABELS = {
     "irradiance_wm2":       "irradiancia solar",
@@ -53,9 +53,7 @@ _FAULT_TYPE_LABELS = {
     "unknown":          "Tipo indeterminado",
 }
 
-# ── Playbook: causas + acciones por tipo de falla ─────────────────────────────
 # Fuentes: IEA PVPS T13, SMA Fault Diagnosis Guide, NREL O&M Best Practices
-
 _FAULT_PLAYBOOK = {
     "inverter_derate": {
         "causas": "Sobrecalentamiento del inversor, límite de potencia activo, ventilación obstruida o temperatura ambiente muy alta.",
@@ -105,7 +103,7 @@ _FAULT_PLAYBOOK = {
     "panel_soiling": {
         "causas": "Acumulación progresiva de polvo, arena (en zonas áridas), excrementos de aves o lodo por lluvia.",
         "acciones": [
-            "Inspeccionar visualmente la superficie de los paneles.",
+            "Inspeccionar visualmente la superficie de los módulos.",
             "Programar limpieza con agua desmineralizada y paño suave.",
             "En zonas con polvo Saháreo, aumentar frecuencia de limpieza a cada 2 semanas.",
             "Revisar sistema de limpieza automática si existe.",
@@ -140,56 +138,37 @@ _FAULT_PLAYBOOK = {
     },
 }
 
-# ── Inferencia de tipo de falla por reglas SHAP ───────────────────────────────
+# ── Fallback por reglas (cuando el modelo no está entrenado aún) ──────────────
 
-def _infer_fault_type(top_reasons: Dict, reading: Dict) -> str:
-    """
-    Infiere el tipo de falla más probable basándose en qué features dominan
-    los SHAP values y los valores físicos de la lectura.
-    Sin reentrenamiento — heurísticas basadas en física del sistema.
-    """
+def _infer_fault_type_rules(top_reasons: Dict, reading: Dict) -> str:
+    """Heurísticas físicas como fallback cuando fault_type_clf no existe."""
     top_features = set(list(top_reasons.keys())[:4])
-    residual     = reading.get("power_residual_kw") or 0.0
-    power_ac     = reading.get("power_ac_kw") or 0.0
-    expected     = reading.get("expected_power_ac_kw") or 1.0
-    ac_dc_ratio  = reading.get("ac_dc_ratio") if reading.get("ac_dc_ratio") else None
+    residual = reading.get("power_residual_kw") or 0.0
+    power_ac = reading.get("power_ac_kw") or 0.0
+    expected = reading.get("expected_power_ac_kw") or 1.0
 
-    # Si la potencia cae a cero o casi cero → desconexión de red
     if expected > 5 and power_ac < 0.5:
         return "grid_disconnect"
-
-    # Si el ratio AC/DC domina con valor bajo → inversor limitado
     if "ac_dc_ratio" in top_features and top_reasons.get("ac_dc_ratio", 0) > 0:
         return "inverter_derate"
-
-    # Si delta de irradiancia domina pero el residual no explica la caída → MPPT
     if "delta_irr_wm2" in top_features and "eff_irr_kw_per_wm2" in top_features:
         return "mppt_failure"
-
-    # Si la eficiencia de conversión cae de forma gradual (residual negativo consistente)
     if "eff_irr_kw_per_wm2" in top_features and residual < -0.05 * expected:
         return "panel_soiling"
-
-    # Si el residual es negativo parcial sin cambio de irradiancia → string o sombra
     if "power_residual_kw" in top_features or "abs_residual_kw" in top_features:
         loss_pct = abs(residual) / max(expected, 1)
         if loss_pct > 0.3:
             return "string_fault"
         if loss_pct > 0.05:
             return "partial_shading"
-
-    # Si delta de temperatura del módulo es el factor principal → PID o degradación
     if "delta_temp_module_c" in top_features and "temp_delta_c" in top_features:
         return "pid_effect"
-
-    # Si los deltas de potencia son el factor principal sin cambio de irradiancia
     if "delta_power_ac_kw" in top_features and "delta_irr_wm2" not in top_features:
         return "sensor_flatline"
-
     return "unknown"
 
 
-# ── Generación de explicación con Ollama ──────────────────────────────────────
+# ── Ollama ────────────────────────────────────────────────────────────────────
 
 def _generate_explanation(
     reading: Dict,
@@ -199,10 +178,10 @@ def _generate_explanation(
     reading_count: int = 1,
     duration_minutes: int = 0,
 ) -> str:
-    plant_id  = reading.get("plant_id", "?")
-    residual  = reading.get("power_residual_kw") or 0.0
-    power_ac  = reading.get("power_ac_kw") or 0.0
-    expected  = reading.get("expected_power_ac_kw") or 0.0
+    plant_id = reading.get("plant_id", "?")
+    residual = reading.get("power_residual_kw") or 0.0
+    power_ac = reading.get("power_ac_kw") or 0.0
+    expected = reading.get("expected_power_ac_kw") or 0.0
 
     type_label = _FAULT_TYPE_LABELS.get(inferred_type, inferred_type)
     playbook   = _FAULT_PLAYBOOK.get(inferred_type, _FAULT_PLAYBOOK["unknown"])
@@ -215,7 +194,6 @@ def _generate_explanation(
         for k, v in top3
     )
 
-    # Contexto del paquete
     if reading_count > 1 and duration_minutes > 0:
         duracion_str = f"{duration_minutes} minutos" if duration_minutes < 60 else f"{duration_minutes // 60}h {duration_minutes % 60}min"
         paquete_ctx  = f"- Duración del evento: {duracion_str} ({reading_count} lecturas consecutivas en falla)"
@@ -237,14 +215,14 @@ INSTRUCCIONES:
 DATOS DEL EVENTO:
 - Planta: {plant_id}
 - Probabilidad de falla: {fault_proba*100:.1f}%
-- Tipo de falla probable: {type_label}
-- Causas típicas de este tipo: {playbook["causas"]}
+- Tipo de falla detectado: {type_label}
+- Causas típicas: {playbook["causas"]}
 - Potencia actual: {power_ac:.1f} kW (se esperaban {expected:.1f} kW, diferencia: {residual:+.1f} kW)
 {paquete_ctx}
-- Factores físicos que más contribuyeron a la alerta:
+- Factores físicos que más contribuyeron:
 {features_text}
 
-ACCIONES DE REFERENCIA PARA ESTE TIPO DE FALLA:
+ACCIONES DE REFERENCIA:
 {acciones_text}
 
 Responde SOLO con las dos secciones. Primera línea: el análisis. Luego exactamente "---". Luego la recomendación."""
@@ -258,10 +236,9 @@ Responde SOLO con las dos secciones. Primera línea: el análisis. Luego exactam
         resp.raise_for_status()
         return resp.json().get("response", "").strip()
     except Exception:
-        # Fallback sin Ollama
         top_feat  = _FEATURE_LABELS.get(top3[0][0], top3[0][0]) if top3 else "desconocido"
         direction = "aumentó" if (top3[0][1] > 0 if top3 else False) else "redujo"
-        pkg_info  = f" El evento duró {duration_minutes} minutos ({reading_count} lecturas)." if reading_count > 1 else ""
+        pkg_info  = f" El evento duró {duration_minutes} min ({reading_count} lecturas)." if reading_count > 1 else ""
         analisis  = (
             f"La planta {plant_id} genera {power_ac:.1f} kW pero se esperaban {expected:.1f} kW "
             f"(diferencia: {residual:+.1f} kW).{pkg_info} "
@@ -302,7 +279,6 @@ def _get_context_window(db: Session, prediction_id: int, n: int = CONTEXT_ROWS) 
 
 
 def _already_explained(db: Session, prediction_id: int) -> Dict | None:
-    """Cache: devuelve explicación guardada + fault_proba desde ai_predictions."""
     row = db.execute(text("""
         SELECT
             e.top_reasons,
@@ -313,8 +289,7 @@ def _already_explained(db: Session, prediction_id: int) -> Dict | None:
         JOIN ai_predictions p ON p.id = e.prediction_id
         LEFT JOIN (
             SELECT AVG(fault_proba) AS expected_value
-            FROM ai_predictions
-            WHERE fault_pred = 0
+            FROM ai_predictions WHERE fault_pred = 0
         ) s ON true
         WHERE e.prediction_id = :pid
         LIMIT 1
@@ -329,50 +304,94 @@ def _save_explanation(db: Session, prediction_id: int, top_reasons: dict, explan
         ON CONFLICT (prediction_id) DO UPDATE
             SET top_reasons      = EXCLUDED.top_reasons,
                 explanation_text = EXCLUDED.explanation_text
-    """), {
-        "pid": prediction_id,
-        "tr":  json.dumps(top_reasons),
-        "et":  explanation_text,
-    })
+    """), {"pid": prediction_id, "tr": json.dumps(top_reasons), "et": explanation_text})
     db.commit()
+
+
+def _build_response(
+    prediction_id: int,
+    cached: bool,
+    fault_proba: float | None,
+    expected_value: float | None,
+    top_reasons: dict,
+    explanation_text: str,
+    fault_type_result: dict | None,
+    reading_count: int,
+    duration_minutes: int,
+) -> dict:
+    """Construye el dict de respuesta unificado."""
+    parts = explanation_text.split("\n---\n", 1) if explanation_text else ["", ""]
+
+    # Determinar tipo: modelo > fallback ya aplicado
+    inferred_type = (fault_type_result or {}).get("fault_type", "unknown")
+    confidence    = (fault_type_result or {}).get("confidence")
+    all_probas    = (fault_type_result or {}).get("all_probas")
+    source        = "model" if fault_type_result else "rules"
+
+    return {
+        "prediction_id":       prediction_id,
+        "cached":              cached,
+        "fault_proba":         fault_proba,
+        "expected_value":      expected_value,
+        "top_reasons":         top_reasons,
+        "inferred_fault_type": inferred_type,
+        "fault_type_label":    _FAULT_TYPE_LABELS.get(inferred_type, inferred_type),
+        "fault_type_source":   source,           # "model" | "rules"
+        "fault_type_confidence": confidence,     # None si viene de reglas
+        "fault_type_all_probas": all_probas,     # None si viene de reglas
+        "analysis_text":       parts[0].strip() if parts[0] else "",
+        "recommendation_text": parts[1].strip() if len(parts) > 1 else "",
+        "explanation_text":    explanation_text,
+        "reading_count":       reading_count,
+        "duration_minutes":    duration_minutes,
+    }
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
 
 @router.get("/{prediction_id}")
 def explain_prediction(
-    prediction_id: int,
-    reading_count:    int   = Query(1,   description="Lecturas consecutivas en falla del paquete"),
-    duration_minutes: int   = Query(0,   description="Duración del evento en minutos"),
+    prediction_id:    int,
+    reading_count:    int = Query(1, description="Lecturas consecutivas en falla del paquete"),
+    duration_minutes: int = Query(0, description="Duración del evento en minutos"),
     db: Session = Depends(get_db),
 ):
-    # ── Cache hit ──
-    cached = _already_explained(db, prediction_id)
-    if cached:
-        top_reasons    = cached.get("top_reasons") or {}
-        # Re-inferir tipo desde top_reasons cacheado (no requiere re-calcular SHAP)
-        context_cached = _get_context_window(db, prediction_id, n=1)
-        reading_cached = context_cached[-1] if context_cached else {}
-        inferred_type  = _infer_fault_type(top_reasons, reading_cached)
-        explanation_text = cached.get("explanation_text", "")
-        # Separar análisis y recomendación
-        parts = explanation_text.split("\n---\n", 1)
-        return {
-            "prediction_id":    prediction_id,
-            "cached":           True,
-            "fault_proba":      cached.get("fault_proba"),
-            "expected_value":   cached.get("expected_value"),
-            "top_reasons":      top_reasons,
-            "inferred_fault_type": inferred_type,
-            "fault_type_label": _FAULT_TYPE_LABELS.get(inferred_type, inferred_type),
-            "analysis_text":    parts[0].strip() if parts else explanation_text,
-            "recommendation_text": parts[1].strip() if len(parts) > 1 else "",
-            "explanation_text": explanation_text,
-            "reading_count":    reading_count,
-            "duration_minutes": duration_minutes,
-        }
+    # ── Cache hit ──────────────────────────────────────────────────────────
+    cached_data = _already_explained(db, prediction_id)
+    if cached_data:
+        top_reasons = cached_data.get("top_reasons") or {}
 
-    # ── Calcular SHAP ──
+        # Re-computar tipo de falla desde el modelo (puede haber mejorado)
+        context_rows = _get_context_window(db, prediction_id, n=CONTEXT_ROWS)
+        reading      = context_rows[-1] if context_rows else {}
+
+        fault_type_result = None
+        if context_rows:
+            df = pd.DataFrame(context_rows)
+            df["expected_power_ac_kw"] = df["expected_power_ac_kw"].fillna(0.0)
+            df["power_residual_kw"]    = df["power_residual_kw"].fillna(0.0)
+            df["abs_residual_kw"]      = df["power_residual_kw"].abs()
+            X = build_clf_features(df)
+            X_target = X.iloc[[-1]]
+            fault_type_result = predict_fault_type(X_target)
+
+        if fault_type_result is None:
+            inferred = _infer_fault_type_rules(top_reasons, reading)
+            fault_type_result = {"fault_type": inferred}
+
+        return _build_response(
+            prediction_id   = prediction_id,
+            cached          = True,
+            fault_proba     = cached_data.get("fault_proba"),
+            expected_value  = cached_data.get("expected_value"),
+            top_reasons     = top_reasons,
+            explanation_text= cached_data.get("explanation_text", ""),
+            fault_type_result = fault_type_result,
+            reading_count   = reading_count,
+            duration_minutes= duration_minutes,
+        )
+
+    # ── Calcular SHAP ──────────────────────────────────────────────────────
     context = _get_context_window(db, prediction_id, n=CONTEXT_ROWS)
     if not context:
         raise HTTPException(status_code=404, detail="Predicción no encontrada")
@@ -396,7 +415,6 @@ def explain_prediction(
     X_target = X.iloc[[-1]]
 
     shap_values = explainer.shap_values(X_target)
-
     if isinstance(shap_values, list):
         arr = np.array(shap_values[1])
     else:
@@ -407,9 +425,16 @@ def explain_prediction(
     physical      = {k: v for k, v in contributions.items() if k != "plant_id"}
     top_reasons   = dict(sorted(physical.items(), key=lambda x: -abs(x[1]))[:8])
 
-    fault_proba    = reading.get("fault_proba") or 0.0
-    inferred_type  = _infer_fault_type(top_reasons, reading)
+    # ── Clasificar tipo de falla ──────────────────────────────────────────
+    fault_type_result = predict_fault_type(X_target)
+    if fault_type_result is None:
+        # Fallback a reglas si el modelo aún no existe
+        inferred = _infer_fault_type_rules(top_reasons, reading)
+        fault_type_result = {"fault_type": inferred}
 
+    inferred_type = fault_type_result["fault_type"]
+
+    fault_proba      = reading.get("fault_proba") or 0.0
     explanation_text = _generate_explanation(
         reading, top_reasons, fault_proba,
         inferred_type, reading_count, duration_minutes,
@@ -417,18 +442,14 @@ def explain_prediction(
 
     _save_explanation(db, prediction_id, top_reasons, explanation_text)
 
-    parts = explanation_text.split("\n---\n", 1)
-    return {
-        "prediction_id":    prediction_id,
-        "cached":           False,
-        "fault_proba":      fault_proba,
-        "expected_value":   expected_value,
-        "top_reasons":      top_reasons,
-        "inferred_fault_type": inferred_type,
-        "fault_type_label": _FAULT_TYPE_LABELS.get(inferred_type, inferred_type),
-        "analysis_text":    parts[0].strip() if parts else explanation_text,
-        "recommendation_text": parts[1].strip() if len(parts) > 1 else "",
-        "explanation_text": explanation_text,
-        "reading_count":    reading_count,
-        "duration_minutes": duration_minutes,
-    }
+    return _build_response(
+        prediction_id    = prediction_id,
+        cached           = False,
+        fault_proba      = fault_proba,
+        expected_value   = expected_value,
+        top_reasons      = top_reasons,
+        explanation_text = explanation_text,
+        fault_type_result= fault_type_result,
+        reading_count    = reading_count,
+        duration_minutes = duration_minutes,
+    )
