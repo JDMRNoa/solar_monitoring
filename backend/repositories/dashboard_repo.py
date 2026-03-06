@@ -4,8 +4,14 @@ from typing import Optional
 
 
 def _hours_clause(hours: Optional[int], alias: str = "r") -> str:
+    """Filtra por las últimas N horas relativas al dato más reciente en la DB.
+    Usa MAX(ts) en lugar de NOW() para que funcione con datos históricos/simulados.
+    """
     if hours:
-        return f"AND {alias}.ts >= NOW() - INTERVAL '{hours} hours'"
+        return (
+            f"AND {alias}.ts >= "
+            f"(SELECT MAX(ts) FROM solar_readings) - INTERVAL '{hours} hours'"
+        )
     return ""
 
 

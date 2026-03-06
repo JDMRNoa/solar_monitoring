@@ -26,15 +26,15 @@ npm run dev
 solar-monitoring/
 │
 ├── backend/
-│   ├── api/              # FastAPI app
-│   ├── ml/               # modelos y entrenamiento
-│   ├── ingestion/        # lógica ingest y validación
-│   ├── collector/        # polling externo (si lo agregas)
+│   ├── api/              
+│   ├── ml/               
+│   ├── core/        
+│   ├── ingestion/       
+│   ├── repositories/ 
+│   ├── services/
 │   └── db/
 │
 ├── simulator/
-│   ├── inverter_api/
-│   └── physics_engine/
 │
 ├── frontend/
 │
