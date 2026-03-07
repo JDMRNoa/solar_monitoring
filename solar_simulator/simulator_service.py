@@ -186,23 +186,37 @@ def _post_to_api(records: List[Dict[str, Any]]) -> bool:
 # ─────────────────────────────────────────────────────────────────
 
 def _execute_step() -> List[Dict[str, Any]]:
-    raw = GEN.simulator.step_all()
-    clean = [_sanitize(r) for r in raw]
+    """Ejecuta 1 paso (usado por el loop background)"""
+    return _execute_batch(1)
 
-    _append_csv(clean)
+def _execute_batch(n_steps: int) -> List[Dict[str, Any]]:
+    """Ejecuta N pasos de golpe, juntando todo para hacer un solo append a CSV y batch API."""
+    all_records = []
+    for _ in range(n_steps):
+        raw = GEN.simulator.step_all()
+        all_records.extend([_sanitize(r) for r in raw])
+
+    if not all_records:
+        return []
+
+    _append_csv(all_records)
 
     if API_URL:
-        for i in range(0, len(clean), BATCH_SIZE):
-            _post_to_api(clean[i:i + BATCH_SIZE])
+        # Enviar en lotes mucho más grandes si se pidió un batch manual gigante (ej. 10,000)
+        # Esto reduce drásticamente los cuellos de botella HTTP
+        effective_batch_size = max(BATCH_SIZE, 5000) if n_steps > 1 else BATCH_SIZE
+        
+        for i in range(0, len(all_records), effective_batch_size):
+            _post_to_api(all_records[i:i + effective_batch_size])
 
-    n_faults = sum(1 for r in clean if r.get("label_is_fault"))
-    GEN.step_count    += 1
-    GEN.total_records += len(clean)
+    n_faults = sum(1 for r in all_records if r.get("label_is_fault"))
+    GEN.step_count    += n_steps
+    GEN.total_records += len(all_records)
     GEN.total_faults  += n_faults
-    GEN.last_ts        = clean[-1]["ts"] if clean else GEN.last_ts
+    GEN.last_ts        = all_records[-1]["ts"]
     GEN.last_step_at   = datetime.now(timezone.utc).isoformat()
 
-    return clean
+    return all_records
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -370,9 +384,7 @@ async def manual_step(req: StepRequest = StepRequest()):
     if req.n_steps < 1 or req.n_steps > 10_000:
         raise HTTPException(422, "n_steps debe estar entre 1 y 10 000.")
 
-    all_records: List[Dict[str, Any]] = []
-    for _ in range(req.n_steps):
-        all_records.extend(_execute_step())
+    all_records = _execute_batch(req.n_steps)
 
     _save_state()
     return {
