@@ -1,8 +1,0 @@
-[
-  "inverter_derate",
-  "mppt_failure",
-  "panel_soiling",
-  "partial_shading",
-  "sensor_flatline",
-  "string_fault"
-]

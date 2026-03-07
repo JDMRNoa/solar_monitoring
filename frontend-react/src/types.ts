@@ -20,7 +20,7 @@ export interface TimeseriesItem {
 
 // ── Alerts (/dashboard/alerts) ───────────────────────────────────────────────
 export interface AlertItem {
-  id?:                   number | null   // prediction_id para XAI
+  id?:                   number | null
   ts?:                   string | null
   plant_id?:             number | null
   model_version?:        string
@@ -41,8 +41,8 @@ export interface ExplainResult {
   explanation_text:        string
   inferred_fault_type:     string | null
   fault_type_label:        string | null
-  fault_type_source:       'model' | 'rules' | null  // 'model' = clasificador ML, 'rules' = heurísticas
-  fault_type_confidence:   number | null             // 0-1, solo cuando source='model'
+  fault_type_source:       'model' | 'rules' | null
+  fault_type_confidence:   number | null
   fault_type_all_probas:   Record<string, number> | null
   analysis_text:           string | null
   recommendation_text:     string | null
@@ -50,12 +50,6 @@ export interface ExplainResult {
   duration_minutes:        number | null
 }
 
-// ── Params ───────────────────────────────────────────────────────────────────
-export interface DashboardParams {
-  plant_id:  number
-  hours:     number
-  min_proba: number
-}
 // ── Fault Packages (/dashboard/fault-packages) ───────────────────────────────
 export interface FaultPackage {
   start_ts:                    string
@@ -64,8 +58,22 @@ export interface FaultPackage {
   reading_count:               number
   duration_minutes:            number
   max_fault_proba:             number
-  representative_id:           number        // prediction_id con mayor proba → va al XAI
+  representative_id:           number
   representative_expected_kw:  number | null
   representative_residual_kw:  number | null
   model_version:               string | null
+  // Tipo de falla disponible directamente, sin necesitar /explain
+  fault_type_pred:             string | null
+  fault_type_proba:            number | null
 }
+
+// ── Params ───────────────────────────────────────────────────────────────────
+export interface DashboardParams {
+  plant_id:  number
+  hours:     number
+  min_proba: number
+}
+
+// ── Per-plant threshold config ────────────────────────────────────────────────
+// Mapa de plant_id → umbral mínimo de fault_proba
+export type PlantThresholds = Record<number, number>

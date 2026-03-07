@@ -18,86 +18,107 @@ from .features import (
 BASE_DIR      = Path(__file__).resolve().parent
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
 
-REG_MODEL_PATH      = ARTIFACTS_DIR / "phys_reg.joblib"
-CLF_MODEL_PATH      = ARTIFACTS_DIR / "fault_clf.joblib"
-TYPE_CLF_PATH       = ARTIFACTS_DIR / "fault_type_clf.joblib"
-TYPE_CLASSES_PATH   = ARTIFACTS_DIR / "fault_type_classes.json"
-FEATURE_LIST_PATH   = ARTIFACTS_DIR / "feature_list.json"
-SHAP_PATH           = ARTIFACTS_DIR / "shap_explainer.joblib"
-
-# ── Cache de modelos (lazy load) ──────────────────────────────────────────────
-
-_reg_model       = None
-_clf_model       = None
-_feature_config  = None
-_shap_artifact   = None
-_fault_type_artifact = None   # {"model": clf, "classes": [...]}
+FEATURE_LIST_PATH = ARTIFACTS_DIR / "feature_list.json"
 
 
-# ── Loaders ───────────────────────────────────────────────────────────────────
-
-def get_shap_explainer() -> dict | None:
-    global _shap_artifact
-    if _shap_artifact is None and SHAP_PATH.exists():
-        _shap_artifact = joblib.load(SHAP_PATH)
-    return _shap_artifact
+def _p(name: str, plant_id: int) -> Path:
+    return ARTIFACTS_DIR / f"{name}_p{plant_id}.joblib"
 
 
-def get_fault_type_clf() -> dict | None:
-    """Devuelve {"model": clf, "classes": [...]} o None si no está entrenado."""
-    global _fault_type_artifact
-    if _fault_type_artifact is None and TYPE_CLF_PATH.exists():
-        _fault_type_artifact = joblib.load(TYPE_CLF_PATH)
-    return _fault_type_artifact
+def _type_classes_path(plant_id: int) -> Path:
+    return ARTIFACTS_DIR / f"fault_type_classes_p{plant_id}.json"
 
 
-def _models_ready() -> bool:
-    return REG_MODEL_PATH.exists() and CLF_MODEL_PATH.exists()
+# ── Cache por planta ──────────────────────────────────────────────────────────
+# Cada entrada: {"reg": model, "clf": model, "type_clf": artifact|None,
+#                "shap": artifact|None, "feature_config": dict}
+
+_plant_cache: dict[int, dict] = {}
+_feature_config: dict | None = None
+
+# Plantas con modelos disponibles (se detecta en runtime)
+_available_plants: set[int] | None = None
 
 
-def _load_models():
-    global _reg_model, _clf_model, _feature_config
+def _get_available_plants() -> set[int]:
+    global _available_plants
+    if _available_plants is None:
+        found = set()
+        for p in range(1, 9):
+            if _p("phys_reg", p).exists() and _p("fault_clf", p).exists():
+                found.add(p)
+        _available_plants = found
+    return _available_plants
 
-    if not _models_ready():
-        raise RuntimeError(
-            "Modelos no encontrados en artifacts/. "
-            "Corre el trainer primero: "
-            "docker compose --profile train run --rm ml-trainer"
-        )
 
-    if _reg_model is None:
-        _reg_model = joblib.load(REG_MODEL_PATH)
-
-    if _clf_model is None:
-        _clf_model = joblib.load(CLF_MODEL_PATH)
-
-    if _feature_config is None:
-        with open(FEATURE_LIST_PATH, "r") as f:
+def _load_feature_config() -> dict:
+    global _feature_config
+    if _feature_config is None and FEATURE_LIST_PATH.exists():
+        with open(FEATURE_LIST_PATH) as f:
             _feature_config = json.load(f)
+    return _feature_config or {"phys_features": PHYS_FEATURES, "clf_features": CLF_FEATURES}
 
 
-def reload_models():
-    """Fuerza recarga completa de todos los modelos."""
-    global _reg_model, _clf_model, _feature_config, _shap_artifact, _fault_type_artifact
-    _reg_model            = None
-    _clf_model            = None
-    _feature_config       = None
-    _shap_artifact        = None
-    _fault_type_artifact  = None
-    _load_models()
+def _load_plant(plant_id: int) -> dict | None:
+    """Carga todos los artefactos de una planta. Retorna None si no existen."""
+    reg_path = _p("phys_reg", plant_id)
+    clf_path = _p("fault_clf", plant_id)
+
+    if not reg_path.exists() or not clf_path.exists():
+        return None
+
+    reg = joblib.load(reg_path)
+    clf = joblib.load(clf_path)
+
+    # Tipo (opcional)
+    type_artifact = None
+    type_path = _p("fault_type_clf", plant_id)
+    if type_path.exists():
+        type_artifact = joblib.load(type_path)
+
+    # SHAP (opcional)
+    shap_artifact = None
+    shap_path = _p("shap_explainer", plant_id)
+    if shap_path.exists():
+        shap_artifact = joblib.load(shap_path)
+
+    return {
+        "reg":            reg,
+        "clf":            clf,
+        "type_artifact":  type_artifact,
+        "shap_artifact":  shap_artifact,
+    }
 
 
-# ── Predicción de tipo de falla ───────────────────────────────────────────────
+def _get_plant(plant_id: int) -> dict | None:
+    if plant_id not in _plant_cache:
+        loaded = _load_plant(plant_id)
+        if loaded is None:
+            return None
+        _plant_cache[plant_id] = loaded
+    return _plant_cache[plant_id]
 
-def predict_fault_type(X_clf: pd.DataFrame) -> dict | None:
+
+# ── API pública ───────────────────────────────────────────────────────────────
+
+def get_shap_explainer(plant_id: int) -> dict | None:
+    """Retorna el artefacto SHAP de la planta, o None."""
+    plant = _get_plant(plant_id)
+    return plant["shap_artifact"] if plant else None
+
+
+def get_fault_type_clf(plant_id: int) -> dict | None:
+    """Retorna {model, classes} del clasificador de tipo, o None."""
+    plant = _get_plant(plant_id)
+    return plant["type_artifact"] if plant else None
+
+
+def predict_fault_type(X_clf: pd.DataFrame, plant_id: int) -> dict | None:
     """
-    Predice el tipo de falla usando el clasificador multiclass.
-    Devuelve {"fault_type": str, "confidence": float, "all_probas": dict}
-    o None si el modelo no está disponible.
-
-    X_clf debe tener exactamente las CLF_FEATURES (mismo orden que en training).
+    Predice tipo de falla para una planta.
+    Retorna {fault_type, confidence, all_probas} o None.
     """
-    artifact = get_fault_type_clf()
+    artifact = get_fault_type_clf(plant_id)
     if artifact is None:
         return None
 
@@ -105,78 +126,130 @@ def predict_fault_type(X_clf: pd.DataFrame) -> dict | None:
     classes = artifact["classes"]
 
     try:
-        probas = model.predict_proba(X_clf)[0]          # shape (n_classes,)
-        best_idx    = int(np.argmax(probas))
-        fault_type  = classes[best_idx]
-        confidence  = float(probas[best_idx])
-        all_probas  = {cls: round(float(p), 4) for cls, p in zip(classes, probas)}
-
+        probas     = model.predict_proba(X_clf)[0]
+        best_idx   = int(np.argmax(probas))
         return {
-            "fault_type":  fault_type,
-            "confidence":  round(confidence, 4),
-            "all_probas":  all_probas,
+            "fault_type": classes[best_idx],
+            "confidence": round(float(probas[best_idx]), 4),
+            "all_probas": {cls: round(float(p), 4) for cls, p in zip(classes, probas)},
         }
     except Exception:
         return None
 
 
-# ── Predicción batch (ingesta) ────────────────────────────────────────────────
+def predict_batch(df: pd.DataFrame) -> list[dict]:
+    """
+    Pipeline completo para un DataFrame de lecturas diurnas.
+    Agrupa por plant_id y usa el modelo correspondiente a cada planta.
+    Si una planta no tiene modelo, retorna predicción nula para esas filas.
 
-def predict_batch(df: pd.DataFrame):
+    Retorna lista de dicts en el mismo orden que df.
+    """
+    feature_config = _load_feature_config()
+    phys_features  = feature_config["phys_features"]
+    clf_features   = feature_config["clf_features"]
 
-    _load_models()
+    results = [None] * len(df)
+    df = df.copy().reset_index(drop=True)
 
-    phys_features_json = _feature_config["phys_features"]
-    clf_features_json  = _feature_config["clf_features"]
+    # Agrupar por planta
+    if "plant_id" not in df.columns:
+        raise RuntimeError("predict_batch requiere columna plant_id")
 
-    df = df.copy()
+    for plant_id, idx_group in df.groupby("plant_id").groups.items():
+        plant_id = int(plant_id)
+        plant = _get_plant(plant_id)
 
-    # 1. Features físicas
-    X_reg_full = build_phys_features(df)
-    missing_phys = [c for c in phys_features_json if c not in X_reg_full.columns]
-    if missing_phys:
-        raise RuntimeError(f"Faltan phys_features: {missing_phys}")
+        if plant is None:
+            # Sin modelo para esta planta — predicción nula
+            zero = {
+                "expected_power_ac_kw": 0.0,
+                "power_residual_kw":    0.0,
+                "fault_proba":          0.0,
+                "fault_pred":           0,
+                "fault_type_pred":      None,
+                "fault_type_proba":     None,
+            }
+            for i in idx_group:
+                results[i] = zero.copy()
+            continue
 
-    X_reg = X_reg_full[phys_features_json]
+        reg = plant["reg"]
+        clf = plant["clf"]
+        df_p = df.loc[idx_group].copy()
 
-    # 2. Potencia esperada
-    expected_power = _reg_model.predict(X_reg)
-    df["expected_power_ac_kw"] = expected_power
-    df["power_residual_kw"]    = df["power_ac_kw"] - df["expected_power_ac_kw"]
-    df["abs_residual_kw"]      = df["power_residual_kw"].abs()
+        # 1. Regresor
+        X_reg = build_phys_features(df_p)[phys_features]
+        expected        = reg.predict(X_reg)
+        df_p["expected_power_ac_kw"] = expected
+        df_p["power_residual_kw"]    = df_p["power_ac_kw"] - df_p["expected_power_ac_kw"]
+        df_p["abs_residual_kw"]      = df_p["power_residual_kw"].abs()
 
-    # 3. Features clasificador
-    X_clf_full = build_clf_features(df)
-    missing_clf = [c for c in clf_features_json if c not in X_clf_full.columns]
-    if missing_clf:
-        raise RuntimeError(f"Faltan clf_features: {missing_clf}")
+        # 2. Clasificador binario
+        X_clf      = build_clf_features(df_p)[clf_features]
+        fault_proba = clf.predict_proba(X_clf)[:, 1]
+        fault_pred  = (fault_proba >= 0.65).astype(int)
 
-    X_clf = X_clf_full[clf_features_json]
+        # 3. Clasificador de tipo (solo fallas predichas)
+        fault_type_preds  = [None] * len(df_p)
+        fault_type_probas = [None] * len(df_p)
+        type_artifact = plant["type_artifact"]
 
-    # 4. Clasificación binaria
-    fault_proba = _clf_model.predict_proba(X_clf)[:, 1]
-    THRESHOLD   = 0.65
-    fault_pred  = (fault_proba >= THRESHOLD).astype(int)
+        fault_local_idx = [i for i, p in enumerate(fault_pred) if p == 1]
+        if fault_local_idx and type_artifact is not None:
+            X_type  = X_clf.iloc[fault_local_idx]
+            model   = type_artifact["model"]
+            classes = type_artifact["classes"]
+            try:
+                type_probas_mat = model.predict_proba(X_type)
+                for li, probas in zip(fault_local_idx, type_probas_mat):
+                    best = int(np.argmax(probas))
+                    fault_type_preds[li]  = classes[best]
+                    fault_type_probas[li] = round(float(probas[best]), 4)
+            except Exception:
+                pass
 
-    # 5. Salida
-    results = []
-    for i in range(len(df)):
-        results.append({
-            "expected_power_ac_kw": float(df.iloc[i]["expected_power_ac_kw"]),
-            "power_residual_kw":    float(df.iloc[i]["power_residual_kw"]),
-            "fault_proba":          float(fault_proba[i]),
-            "fault_pred":           int(fault_pred[i]),
-        })
+        # Mapear resultados de vuelta a posiciones originales
+        for local_i, global_i in enumerate(idx_group):
+            results[global_i] = {
+                "expected_power_ac_kw": float(df_p.iloc[local_i]["expected_power_ac_kw"]),
+                "power_residual_kw":    float(df_p.iloc[local_i]["power_residual_kw"]),
+                "fault_proba":          float(fault_proba[local_i]),
+                "fault_pred":           int(fault_pred[local_i]),
+                "fault_type_pred":      fault_type_preds[local_i],
+                "fault_type_proba":     fault_type_probas[local_i],
+            }
+
+    # Rellenar cualquier None que haya quedado (no debería ocurrir)
+    zero = {"expected_power_ac_kw": 0.0, "power_residual_kw": 0.0,
+            "fault_proba": 0.0, "fault_pred": 0,
+            "fault_type_pred": None, "fault_type_proba": None}
+    results = [r if r is not None else zero.copy() for r in results]
 
     return results
 
 
+def reload_models():
+    """Fuerza recarga completa de todos los modelos."""
+    global _plant_cache, _feature_config, _available_plants
+    _plant_cache      = {}
+    _feature_config   = None
+    _available_plants = None
+
+
 def ml_status() -> dict:
-    """Estado del ML — útil para /ml/status."""
-    return {
-        "models_ready":          _models_ready(),
-        "reg_model_exists":      REG_MODEL_PATH.exists(),
-        "clf_model_exists":      CLF_MODEL_PATH.exists(),
-        "fault_type_clf_exists": TYPE_CLF_PATH.exists(),
-        "shap_exists":           SHAP_PATH.exists(),
-    }
+    available = _get_available_plants()
+    status = {"available_plants": sorted(available)}
+    for p in range(1, 9):
+        has_reg      = _p("phys_reg",        p).exists()
+        has_clf      = _p("fault_clf",       p).exists()
+        has_type     = _p("fault_type_clf",  p).exists()
+        has_shap     = _p("shap_explainer",  p).exists()
+        status[f"plant_{p}"] = {
+            "reg":      has_reg,
+            "clf":      has_clf,
+            "type_clf": has_type,
+            "shap":     has_shap,
+            "ready":    has_reg and has_clf,
+        }
+    return status

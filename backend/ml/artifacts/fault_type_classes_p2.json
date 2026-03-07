@@ -1,0 +1,8 @@
+[
+  "grid_disconnect",
+  "inverter_derate",
+  "mppt_failure",
+  "partial_shading",
+  "sensor_flatline",
+  "string_fault"
+]

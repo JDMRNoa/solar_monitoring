@@ -5,14 +5,14 @@
   "total_faults": 0,
   "fault_rate_pct": 0.0,
   "last_ts": null,
-  "last_step_at": null,
+  "last_step_at": "2026-03-07T07:47:57.269617+00:00",
   "started_at": null,
   "stopped_at": null,
   "errors": 0,
   "csv_path": "/app/output/solar_stream.csv",
   "config": {
     "step_delay_s": 2.0,
-    "n_plants": 3,
+    "n_plants": 8,
     "fault_level": 1,
     "api_target": "http://backend:8000",
     "autostart": false

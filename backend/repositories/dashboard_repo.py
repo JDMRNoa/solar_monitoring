@@ -4,9 +4,7 @@ from typing import Optional
 
 
 def _hours_clause(hours: Optional[int], alias: str = "r") -> str:
-    """Filtra por las últimas N horas relativas al dato más reciente en la DB.
-    Usa MAX(ts) en lugar de NOW() para que funcione con datos históricos/simulados.
-    """
+    """Filtra por las últimas N horas relativas al dato más reciente en la DB."""
     if hours:
         return (
             f"AND {alias}.ts >= "
@@ -52,15 +50,10 @@ def fetch_summary_by_plant(db: Session, plant_id: int, hours: int = None):
 def fetch_alerts(db: Session, min_proba: float = 0.3, hours: int = None):
     query = text(f"""
         SELECT
-            p.id,
-            r.ts,
-            r.plant_id,
-            p.fault_proba,
-            p.fault_pred,
-            p.expected_power_ac_kw,
-            p.power_residual_kw,
-            p.model_version,
-            p.created_at
+            p.id, r.ts, r.plant_id,
+            p.fault_proba, p.fault_pred,
+            p.expected_power_ac_kw, p.power_residual_kw,
+            p.model_version, p.created_at
         FROM ai_predictions p
         JOIN solar_readings r ON r.id = p.reading_id
         WHERE p.fault_pred = 1
@@ -76,15 +69,10 @@ def fetch_alerts(db: Session, min_proba: float = 0.3, hours: int = None):
 def fetch_alerts_by_plant(db: Session, plant_id: int, min_proba: float = 0.3, hours: int = None):
     query = text(f"""
         SELECT
-            p.id,
-            r.ts,
-            r.plant_id,
-            p.fault_proba,
-            p.fault_pred,
-            p.expected_power_ac_kw,
-            p.power_residual_kw,
-            p.model_version,
-            p.created_at
+            p.id, r.ts, r.plant_id,
+            p.fault_proba, p.fault_pred,
+            p.expected_power_ac_kw, p.power_residual_kw,
+            p.model_version, p.created_at
         FROM ai_predictions p
         JOIN solar_readings r ON r.id = p.reading_id
         WHERE p.fault_pred = 1
@@ -101,12 +89,8 @@ def fetch_alerts_by_plant(db: Session, plant_id: int, min_proba: float = 0.3, ho
 def fetch_timeseries(db: Session, hours: int = None, limit: int = 2000):
     query = text(f"""
         SELECT
-            r.ts,
-            r.plant_id,
-            r.power_ac_kw,
-            p.expected_power_ac_kw,
-            p.power_residual_kw,
-            p.fault_proba
+            r.ts, r.plant_id, r.power_ac_kw,
+            p.expected_power_ac_kw, p.power_residual_kw, p.fault_proba
         FROM solar_readings r
         LEFT JOIN ai_predictions p ON p.reading_id = r.id
         WHERE 1=1 {_hours_clause(hours)}
@@ -120,12 +104,8 @@ def fetch_timeseries(db: Session, hours: int = None, limit: int = 2000):
 def fetch_timeseries_by_plant(db: Session, plant_id: int, hours: int = None, limit: int = 2000):
     query = text(f"""
         SELECT
-            r.ts,
-            r.plant_id,
-            r.power_ac_kw,
-            p.expected_power_ac_kw,
-            p.power_residual_kw,
-            p.fault_proba
+            r.ts, r.plant_id, r.power_ac_kw,
+            p.expected_power_ac_kw, p.power_residual_kw, p.fault_proba
         FROM solar_readings r
         LEFT JOIN ai_predictions p ON p.reading_id = r.id
         WHERE r.plant_id = :plant_id {_hours_clause(hours)}
@@ -133,11 +113,21 @@ def fetch_timeseries_by_plant(db: Session, plant_id: int, hours: int = None, lim
         LIMIT :limit
     """)
     result = db.execute(query, {"plant_id": plant_id, "limit": limit}).mappings().all()
-    rows = [dict(row) for row in result]
-    return list(reversed(rows))
+    return list(reversed([dict(row) for row in result]))
 
-def fetch_raw_faults_by_plant(db: Session, plant_id: int, hours: int = None, min_proba: float = 0.0, limit: int = 5000):
-    """Trae todas las predicciones de falla para agruparlas en Python."""
+
+def fetch_raw_faults_by_plant(
+    db: Session,
+    plant_id: int,
+    hours: int = None,
+    min_proba: float = 0.0,
+    limit: int = 5000,
+):
+    """
+    Trae todas las predicciones de falla para agruparlas en paquetes.
+    Incluye fault_type_pred y fault_type_proba para mostrar el tipo
+    en la tabla sin necesitar llamar a /explain.
+    """
     query = text(f"""
         SELECT
             p.id,
@@ -148,6 +138,8 @@ def fetch_raw_faults_by_plant(db: Session, plant_id: int, hours: int = None, min
             p.expected_power_ac_kw,
             p.power_residual_kw,
             p.model_version,
+            p.fault_type_pred,
+            p.fault_type_proba,
             p.created_at
         FROM ai_predictions p
         JOIN solar_readings r ON r.id = p.reading_id
@@ -158,5 +150,7 @@ def fetch_raw_faults_by_plant(db: Session, plant_id: int, hours: int = None, min
         ORDER BY r.ts ASC
         LIMIT :limit
     """)
-    result = db.execute(query, {"plant_id": plant_id, "min_proba": min_proba, "limit": limit}).mappings().all()
+    result = db.execute(
+        query, {"plant_id": plant_id, "min_proba": min_proba, "limit": limit}
+    ).mappings().all()
     return [dict(row) for row in result]

@@ -373,7 +373,8 @@ def explain_prediction(
             df["abs_residual_kw"]      = df["power_residual_kw"].abs()
             X = build_clf_features(df)
             X_target = X.iloc[[-1]]
-            fault_type_result = predict_fault_type(X_target)
+            _pid_cache = int(reading.get("plant_id") or 0)
+            fault_type_result = predict_fault_type(X_target, _pid_cache)
 
         if fault_type_result is None:
             inferred = _infer_fault_type_rules(top_reasons, reading)
@@ -396,11 +397,12 @@ def explain_prediction(
     if not context:
         raise HTTPException(status_code=404, detail="Predicción no encontrada")
 
-    reading = context[-1]
+    reading   = context[-1]
+    _plant_id = int(reading.get("plant_id") or 0)
 
-    shap_artifact = get_shap_explainer()
+    shap_artifact = get_shap_explainer(_plant_id)
     if shap_artifact is None:
-        raise HTTPException(status_code=503, detail="SHAP explainer no disponible — reentrenar modelo")
+        raise HTTPException(status_code=503, detail=f"SHAP explainer no disponible para planta {_plant_id} — reentrenar modelo")
 
     explainer      = shap_artifact["explainer"]
     feature_names  = shap_artifact["feature_names"]
@@ -426,7 +428,7 @@ def explain_prediction(
     top_reasons   = dict(sorted(physical.items(), key=lambda x: -abs(x[1]))[:8])
 
     # ── Clasificar tipo de falla ──────────────────────────────────────────
-    fault_type_result = predict_fault_type(X_target)
+    fault_type_result = predict_fault_type(X_target, _plant_id)
     if fault_type_result is None:
         # Fallback a reglas si el modelo aún no existe
         inferred = _infer_fault_type_rules(top_reasons, reading)

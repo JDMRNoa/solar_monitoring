@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import type { Summary, TimeseriesItem, FaultPackage } from '../types'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import type { Summary, TimeseriesItem, FaultPackage, PlantThresholds } from '../types'
 import { fetchSummary, fetchTimeseries, fetchFaultPackages } from '../lib/api'
 import { PowerChart, ResidualFaultChart } from '../components/Charts'
 import AlertsTable from '../components/AlertsTable'
@@ -21,7 +21,22 @@ function safeInt(val: number | null | undefined): string {
   return `${val}`
 }
 
-// ── KPI Card ────────────────────────────────────────────────────────────────
+// ── Constantes ───────────────────────────────────────────────────────────────
+
+const PLANTS = [
+  { label: 'Planta 1 – Caribe (Barranquilla)',  value: 1 },
+  { label: 'Planta 2 – Andina (Bogotá)',        value: 2 },
+  { label: 'Planta 3 – Paisa (Medellín)',       value: 3 },
+  { label: 'Planta 4 – Valle (Cali)',           value: 4 },
+  { label: 'Planta 5 – Llanos (Villavicencio)', value: 5 },
+  { label: 'Planta 6 – Guajira (Riohacha)',     value: 6 },
+  { label: 'Planta 7 – Sierra Nevada',          value: 7 },
+  { label: 'Planta 8 – Boyacá (Tunja)',         value: 8 },
+]
+
+const DEFAULT_THRESHOLD = 0.3
+
+// ── KPI Card ─────────────────────────────────────────────────────────────────
 
 interface KpiProps {
   label: string
@@ -40,7 +55,7 @@ function KpiCard({ label, value, sub, accent }: KpiProps) {
   )
 }
 
-// ── Controls ────────────────────────────────────────────────────────────────
+// ── Select ───────────────────────────────────────────────────────────────────
 
 interface SelectProps {
   label: string
@@ -76,7 +91,55 @@ function Select({ label, value, options, onChange }: SelectProps) {
   )
 }
 
-// ── Loading / Error helpers ──────────────────────────────────────────────────
+// ── Threshold slider ─────────────────────────────────────────────────────────
+
+interface ThresholdSliderProps {
+  plantId: number
+  thresholds: PlantThresholds
+  onChange: (plantId: number, value: number) => void
+}
+
+function ThresholdSlider({ plantId, thresholds, onChange }: ThresholdSliderProps) {
+  const value = thresholds[plantId] ?? DEFAULT_THRESHOLD
+  const pct   = Math.round(value * 100)
+
+  const color =
+    value >= 0.8 ? '#3fb950' :
+    value >= 0.5 ? '#f59e0b' :
+    '#f85149'
+
+  return (
+    <label className="flex flex-col gap-1" style={{ fontSize: '0.6rem', color: 'var(--text-dim)', letterSpacing: '0.08em', minWidth: '140px' }}>
+      <span style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <span>UMBRAL FALLA</span>
+        <span style={{ color, fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>≥ {pct}%</span>
+      </span>
+      <input
+        type="range"
+        min={10}
+        max={95}
+        step={5}
+        value={pct}
+        onChange={(e) => onChange(plantId, Number(e.target.value) / 100)}
+        style={{
+          accentColor: color,
+          cursor: 'pointer',
+          width: '100%',
+          height: '4px',
+        }}
+      />
+      <span style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-dim)', fontSize: '0.55rem' }}>
+        <span>10%</span>
+        <span style={{ color: 'var(--text-dim)', fontSize: '0.55rem' }}>
+          {value !== DEFAULT_THRESHOLD ? '· ajustado para esta planta' : '· global'}
+        </span>
+        <span>95%</span>
+      </span>
+    </label>
+  )
+}
+
+// ── Loading / Error ───────────────────────────────────────────────────────────
 
 function Spinner() {
   return (
@@ -104,32 +167,36 @@ type LoadState = 'idle' | 'loading' | 'success' | 'error'
 
 interface DashboardProps {
   onLastTimestamp?: (ts: string | null) => void
+  initialPlantId?: number
+  onPlantChange?: (plantId: number) => void
 }
 
-export default function Dashboard({ onLastTimestamp }: DashboardProps) {
-  const [plantId, setPlantId] = useState(1)
-  const [hours, setHours] = useState(11000)
-  const [minProba, setMinProba] = useState(0.3)
+export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlantChange }: DashboardProps) {
+  const [plantId, setPlantId]     = useState(initialPlantId)
+  const [hours, setHours]         = useState(11000)
 
-  const [state, setState] = useState<LoadState>('idle')
-  const [error, setError] = useState<string | null>(null)
+  // Umbrales por planta — se persisten mientras dure la sesión
+  const [thresholds, setThresholds] = useState<PlantThresholds>({})
 
-  const [summary, setSummary] = useState<Summary | null>(null)
-  const [tsData, setTsData] = useState<TimeseriesItem[]>([])
+  const minProba = thresholds[plantId] ?? DEFAULT_THRESHOLD
+
+  const [state, setState]       = useState<LoadState>('idle')
+  const [error, setError]       = useState<string | null>(null)
+  const [summary, setSummary]   = useState<Summary | null>(null)
+  const [tsData, setTsData]     = useState<TimeseriesItem[]>([])
   const [packages, setPackages] = useState<FaultPackage[]>([])
-
-
   const [pendingLoad, setPendingLoad] = useState(false)
 
   const load = useCallback(async () => {
     setPendingLoad(false)
     setState('loading')
     setError(null)
+    const threshold = thresholds[plantId] ?? DEFAULT_THRESHOLD
     try {
       const [s, ts, al] = await Promise.all([
         fetchSummary(plantId, hours),
         fetchTimeseries(plantId, hours),
-        fetchFaultPackages(plantId, hours, minProba),
+        fetchFaultPackages(plantId, hours, threshold),
       ])
       setSummary(s)
       setTsData(Array.isArray(ts) ? ts : [])
@@ -141,17 +208,19 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
       setError(e instanceof Error ? e.message : String(e))
       setState('error')
     }
-  }, [plantId, hours, minProba, onLastTimestamp])
+  }, [plantId, hours, thresholds, onLastTimestamp])
 
   useEffect(() => { load() }, [load])
 
-  // Derivar last_ts del último item de la serie si no viene en summary
-  const lastTs = summary?.last_ts ?? (tsData.length > 0 ? tsData[tsData.length - 1].ts : null)
+  function handleThresholdChange(pid: number, value: number) {
+    setThresholds((prev) => ({ ...prev, [pid]: value }))
+    setPendingLoad(true)
+  }
 
+  const lastTs    = summary?.last_ts ?? (tsData.length > 0 ? tsData[tsData.length - 1].ts : null)
   const probColor = summary?.max_fault_proba != null
     ? summary.max_fault_proba > 0.8 ? '#f85149' : summary.max_fault_proba > 0.5 ? '#f59e0b' : '#3fb950'
     : '#3fb950'
-
   const lastTime = lastTs ? new Date(lastTs).toLocaleTimeString() : '—'
   const lastDate = lastTs ? new Date(lastTs).toLocaleDateString() : undefined
 
@@ -166,17 +235,8 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
         <Select
           label="PLANTA"
           value={plantId}
-          options={[
-            { label: 'Planta 1 – Caribe (Barranquilla)',  value: 1 },
-            { label: 'Planta 2 – Andina (Bogotá)',        value: 2 },
-            { label: 'Planta 3 – Paisa (Medellín)',       value: 3 },
-            { label: 'Planta 4 – Valle (Cali)',           value: 4 },
-            { label: 'Planta 5 – Llanos (Villavicencio)', value: 5 },
-            { label: 'Planta 6 – Guajira (Riohacha)',     value: 6 },
-            { label: 'Planta 7 – Sierra Nevada',          value: 7 },
-            { label: 'Planta 8 – Boyacá (Tunja)',         value: 8 },
-          ]}
-          onChange={(v) => { setPendingLoad(true); setPlantId(Number(v)) }}
+          options={PLANTS}
+          onChange={(v) => { setPendingLoad(true); setPlantId(Number(v)); onPlantChange?.(Number(v)) }}
         />
         <Select
           label="PERÍODO"
@@ -191,15 +251,12 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
           ]}
           onChange={(v) => { setPendingLoad(true); setHours(Number(v)) }}
         />
-        <Select
-          label="MIN. PROB. FALLA"
-          value={minProba}
-          options={[
-            { label: '≥ 30%', value: 0.3 },
-            { label: '≥ 60%', value: 0.6 },
-            { label: '≥ 80%', value: 0.8 },
-          ]}
-          onChange={(v) => { setPendingLoad(true); setMinProba(Number(v)) }}
+
+        {/* Umbral por planta */}
+        <ThresholdSlider
+          plantId={plantId}
+          thresholds={thresholds}
+          onChange={handleThresholdChange}
         />
 
         <button
@@ -242,36 +299,16 @@ export default function Dashboard({ onLastTimestamp }: DashboardProps) {
         <>
           {/* KPI row */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <KpiCard
-              label="POTENCIA PROM."
-              value={safeFixed(summary.avg_power, 2)}
-              sub="kW"
-              accent="#f59e0b"
-            />
-            <KpiCard
-              label="POTENCIA MÁX."
-              value={safeFixed(summary.max_power, 2)}
-              sub="kW"
-            />
-            <KpiCard
-              label="LECTURAS"
-              value={safeInt(summary.total_readings)}
-            />
+            <KpiCard label="POTENCIA PROM." value={safeFixed(summary.avg_power, 2)} sub="kW" accent="#f59e0b" />
+            <KpiCard label="POTENCIA MÁX."  value={safeFixed(summary.max_power, 2)} sub="kW" />
+            <KpiCard label="LECTURAS"        value={safeInt(summary.total_readings)} />
             <KpiCard
               label="FALLAS"
-              value={safeInt(summary.total_faults)}              // ← corregido
+              value={safeInt(summary.total_faults)}
               accent={(summary.total_faults ?? 0) > 0 ? '#f85149' : undefined}
             />
-            <KpiCard
-              label="MAX PROB. FALLA"
-              value={safePct(summary.max_fault_proba)}
-              accent={probColor}
-            />
-            <KpiCard
-              label="ÚLTIMO DATO"
-              value={lastTime}
-              sub={lastDate}
-            />
+            <KpiCard label="MAX PROB. FALLA" value={safePct(summary.max_fault_proba)} accent={probColor} />
+            <KpiCard label="ÚLTIMO DATO"     value={lastTime} sub={lastDate} />
           </div>
 
           {/* Charts */}

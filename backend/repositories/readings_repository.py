@@ -21,14 +21,17 @@ _INSERT_READING_SQL = text("""
     RETURNING id
 """)
 
+# fault_type_pred / fault_type_proba se guardan en ai_predictions
 _INSERT_PREDICTION_SQL = text("""
     INSERT INTO ai_predictions (
         reading_id, model_version, expected_power_ac_kw,
-        power_residual_kw, fault_proba, fault_pred
+        power_residual_kw, fault_proba, fault_pred,
+        fault_type_pred, fault_type_proba
     )
     VALUES (
         :reading_id, :model_version, :expected_power_ac_kw,
-        :power_residual_kw, :fault_proba, :fault_pred
+        :power_residual_kw, :fault_proba, :fault_pred,
+        :fault_type_pred, :fault_type_proba
     )
 """)
 
@@ -44,7 +47,7 @@ def insert_reading(db: Session, r: Dict[str, Any]) -> int:
         "power_dc_kw":          r.get("power_dc_kw"),
         "energy_daily_kwh":     r.get("energy_daily_kwh"),
         "energy_total_kwh":     r.get("energy_total_kwh"),
-        "expected_power_ac_kw": r.get("expected_power_ac_kw"),  # ground truth simulador
+        "expected_power_ac_kw": r.get("expected_power_ac_kw"),
         "label_is_fault":       r.get("label_is_fault", 0),
         "fault_type":           r.get("fault_type", ""),
         "fault_severity":       r.get("fault_severity", 0),
@@ -63,6 +66,8 @@ def insert_prediction(db: Session, reading_id: int, pred: Dict[str, Any]) -> Non
         "power_residual_kw":    pred["power_residual_kw"],
         "fault_proba":          pred["fault_proba"],
         "fault_pred":           pred["fault_pred"],
+        "fault_type_pred":      pred.get("fault_type_pred"),    # None si no hay falla predicha
+        "fault_type_proba":     pred.get("fault_type_proba"),   # None si no hay falla predicha
     })
 
 

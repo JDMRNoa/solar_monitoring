@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS solar_readings (
   energy_total_kwh     DOUBLE PRECISION,
 
   -- Ground truth del simulador
-  expected_power_ac_kw DOUBLE PRECISION,   -- potencia ideal sin falla (para validar ML)
+  expected_power_ac_kw DOUBLE PRECISION,
 
   -- Labels
   label_is_fault       INT DEFAULT 0,
@@ -33,10 +33,15 @@ CREATE TABLE IF NOT EXISTS ai_predictions (
   id                   BIGSERIAL PRIMARY KEY,
   reading_id           BIGINT NOT NULL REFERENCES solar_readings(id) ON DELETE CASCADE,
   model_version        TEXT DEFAULT 'v1',
-  expected_power_ac_kw DOUBLE PRECISION,   -- predicción del regresor ML
-  power_residual_kw    DOUBLE PRECISION,   -- power_ac_kw - expected (ML)
+  expected_power_ac_kw DOUBLE PRECISION,
+  power_residual_kw    DOUBLE PRECISION,
   fault_proba          DOUBLE PRECISION,
   fault_pred           INT,
+
+  -- Tipo de falla predicho por el clasificador multiclass (NULL si no hay falla)
+  fault_type_pred      TEXT,
+  fault_type_proba     DOUBLE PRECISION,
+
   created_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -56,3 +61,10 @@ CREATE TABLE IF NOT EXISTS ai_explanations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_explanations_pred ON ai_explanations(prediction_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migración para bases de datos existentes (idempotente)
+-- ─────────────────────────────────────────────────────────────────────────────
+ALTER TABLE ai_predictions
+  ADD COLUMN IF NOT EXISTS fault_type_pred  TEXT,
+  ADD COLUMN IF NOT EXISTS fault_type_proba DOUBLE PRECISION;
