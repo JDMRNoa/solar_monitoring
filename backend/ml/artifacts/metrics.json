@@ -1,146 +1,1152 @@
 {
-  "n_samples": 14543,
-  "n_train": 11633,
-  "n_test": 2910,
-  "class_distribution": {
-    "count": {
-      "0": 9882,
-      "1": 4661
-    },
-    "ratio": {
-      "0": 0.6795,
-      "1": 0.3205
-    }
-  },
-  "regression_mae": 3.096331,
-  "accuracy": 0.9519,
-  "precision": 0.9219,
-  "recall": 0.9298,
-  "f1": 0.9258,
-  "roc_auc": 0.9908,
-  "confusion_matrix": [
-    [
-      1896,
-      74
-    ],
-    [
-      66,
-      874
-    ]
+  "trained_plants": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
   ],
-  "classification_report": {
-    "0": {
-      "precision": 0.9663608562691132,
-      "recall": 0.9624365482233502,
-      "f1-score": 0.9643947100712106,
-      "support": 1970.0
-    },
+  "skipped_plants": [],
+  "per_plant": {
     "1": {
-      "precision": 0.9219409282700421,
-      "recall": 0.9297872340425531,
-      "f1-score": 0.9258474576271186,
-      "support": 940.0
-    },
-    "accuracy": 0.9518900343642611,
-    "macro avg": {
-      "precision": 0.9441508922695776,
-      "recall": 0.9461118911329517,
-      "f1-score": 0.9451210838491646,
-      "support": 2910.0
-    },
-    "weighted avg": {
-      "precision": 0.9520121510048084,
-      "recall": 0.9518900343642611,
-      "f1-score": 0.9519430202782736,
-      "support": 2910.0
-    }
-  },
-  "feature_importances": {
-    "plant_id": 0.21002,
-    "eff_irr_kw_per_wm2": 0.16455,
-    "temp_ambient_c": 0.13279,
-    "power_residual_kw": 0.13217,
-    "ac_dc_ratio": 0.08486,
-    "abs_residual_kw": 0.06449,
-    "temp_module_c": 0.04579,
-    "temp_delta_c": 0.04016,
-    "expected_power_ac_kw": 0.03452,
-    "irradiance_wm2": 0.03276,
-    "delta_power_ac_kw": 0.01659,
-    "delta_irr_wm2": 0.01424,
-    "delta_temp_module_c": 0.0128,
-    "hour": 0.01083,
-    "minute": 0.00344
-  },
-  "fault_type_classifier": {
-    "accuracy": 0.9329787234042554,
-    "f1_weighted": 0.9275548545484881,
-    "classification_report": {
-      "grid_disconnect": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1-score": 0.0,
-        "support": 5.0
+      "plant_id": 1,
+      "n_samples": 33164,
+      "n_train": 26531,
+      "n_test": 6633,
+      "regression_mae": 2.6356,
+      "accuracy": 0.8978,
+      "f1": 0.9028,
+      "roc_auc": 0.9658,
+      "confusion_matrix": [
+        [
+          2805,
+          492
+        ],
+        [
+          186,
+          3150
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9378134403209629,
+          "recall": 0.8507734303912647,
+          "f1-score": 0.892175572519084,
+          "support": 3297.0
+        },
+        "1": {
+          "precision": 0.8649093904448105,
+          "recall": 0.9442446043165468,
+          "f1-score": 0.9028374892519346,
+          "support": 3336.0
+        },
+        "accuracy": 0.8977838082315694,
+        "macro avg": {
+          "precision": 0.9013614153828867,
+          "recall": 0.8975090173539058,
+          "f1-score": 0.8975065308855092,
+          "support": 6633.0
+        },
+        "weighted avg": {
+          "precision": 0.9011470886871856,
+          "recall": 0.8977838082315694,
+          "f1-score": 0.8975378752811508,
+          "support": 6633.0
+        }
       },
-      "inverter_derate": {
-        "precision": 0.8994974874371859,
-        "recall": 0.9944444444444445,
-        "f1-score": 0.9445910290237467,
-        "support": 180.0
+      "feature_importances": {
+        "eff_irr_kw_per_wm2": 0.22084,
+        "residual_ratio": 0.18838,
+        "power_residual_kw": 0.17513,
+        "temp_module_c": 0.07012,
+        "ac_dc_ratio": 0.04626,
+        "irradiance_wm2": 0.04108,
+        "power_ratio": 0.04001,
+        "temp_delta_c": 0.03963,
+        "temp_ambient_c": 0.0356,
+        "expected_power_ac_kw": 0.03558,
+        "abs_residual_kw": 0.03529,
+        "delta_temp_module_c": 0.02025,
+        "delta_power_ac_kw": 0.01985,
+        "delta_irr_wm2": 0.0193,
+        "hour": 0.00651,
+        "minute": 0.00618
       },
-      "mppt_failure": {
-        "precision": 0.7391304347826086,
-        "recall": 0.8292682926829268,
-        "f1-score": 0.7816091954022989,
-        "support": 41.0
+      "fault_type_classifier": {
+        "accuracy": 0.9808153477218226,
+        "f1_weighted": 0.9797760766906616,
+        "classification_report": {
+          "grid_disconnect": {
+            "precision": 1.0,
+            "recall": 0.0625,
+            "f1-score": 0.11764705882352941,
+            "support": 16.0
+          },
+          "inverter_derate": {
+            "precision": 0.8823529411764706,
+            "recall": 0.9722222222222222,
+            "f1-score": 0.9251101321585903,
+            "support": 108.0
+          },
+          "mppt_failure": {
+            "precision": 0.8571428571428571,
+            "recall": 0.8235294117647058,
+            "f1-score": 0.84,
+            "support": 51.0
+          },
+          "panel_soiling": {
+            "precision": 0.9980645161290322,
+            "recall": 1.0,
+            "f1-score": 0.9990313206328705,
+            "support": 3094.0
+          },
+          "partial_shading": {
+            "precision": 0.34146341463414637,
+            "recall": 0.5833333333333334,
+            "f1-score": 0.4307692307692308,
+            "support": 24.0
+          },
+          "sensor_flatline": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 0.0
+          },
+          "string_fault": {
+            "precision": 0.8888888888888888,
+            "recall": 0.37209302325581395,
+            "f1-score": 0.5245901639344263,
+            "support": 43.0
+          },
+          "accuracy": 0.9808153477218226,
+          "macro avg": {
+            "precision": 0.7097018025673422,
+            "recall": 0.544811141510868,
+            "f1-score": 0.5481639866169495,
+            "support": 3336.0
+          },
+          "weighted avg": {
+            "precision": 0.9860423742320179,
+            "recall": 0.9808153477218226,
+            "f1-score": 0.9797760766906616,
+            "support": 3336.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "panel_soiling",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 13618,
+        "n_test": 3336
       },
-      "panel_soiling": {
-        "precision": 0.9851851851851852,
-        "recall": 0.99812382739212,
-        "f1-score": 0.9916123019571296,
-        "support": 533.0
-      },
-      "partial_shading": {
-        "precision": 0.8979591836734694,
-        "recall": 0.7333333333333333,
-        "f1-score": 0.8073394495412844,
-        "support": 60.0
-      },
-      "sensor_flatline": {
-        "precision": 0.9512195121951219,
-        "recall": 0.582089552238806,
-        "f1-score": 0.7222222222222222,
-        "support": 67.0
-      },
-      "string_fault": {
-        "precision": 0.7538461538461538,
-        "recall": 0.9074074074074074,
-        "f1-score": 0.8235294117647058,
-        "support": 54.0
-      },
-      "accuracy": 0.9329787234042554,
-      "macro avg": {
-        "precision": 0.7466911367313892,
-        "recall": 0.720666693928434,
-        "f1-score": 0.7244148014159125,
-        "support": 940.0
-      },
-      "weighted avg": {
-        "precision": 0.9315261169294233,
-        "recall": 0.9329787234042554,
-        "f1-score": 0.9275548545484881,
-        "support": 940.0
+      "class_distribution": {
+        "count": {
+          "0": 16210,
+          "1": 16954
+        },
+        "ratio": {
+          "0": 0.4888,
+          "1": 0.5112
+        }
       }
     },
-    "classes": [
-      "inverter_derate",
-      "mppt_failure",
-      "panel_soiling",
-      "partial_shading",
-      "sensor_flatline",
-      "string_fault"
-    ],
-    "n_train": 3721,
-    "n_test": 940
+    "2": {
+      "plant_id": 2,
+      "n_samples": 33041,
+      "n_train": 26432,
+      "n_test": 6609,
+      "regression_mae": 0.6912,
+      "accuracy": 0.9967,
+      "f1": 0.9569,
+      "roc_auc": 0.9969,
+      "confusion_matrix": [
+        [
+          6343,
+          15
+        ],
+        [
+          7,
+          244
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9988976377952756,
+          "recall": 0.9976407675369613,
+          "f1-score": 0.9982688070506768,
+          "support": 6358.0
+        },
+        "1": {
+          "precision": 0.9420849420849421,
+          "recall": 0.9721115537848606,
+          "f1-score": 0.9568627450980393,
+          "support": 251.0
+        },
+        "accuracy": 0.9966712059313058,
+        "macro avg": {
+          "precision": 0.9704912899401088,
+          "recall": 0.9848761606609109,
+          "f1-score": 0.977565776074358,
+          "support": 6609.0
+        },
+        "weighted avg": {
+          "precision": 0.9967399760274901,
+          "recall": 0.9966712059313058,
+          "f1-score": 0.9966962663410214,
+          "support": 6609.0
+        }
+      },
+      "feature_importances": {
+        "residual_ratio": 0.30217,
+        "power_residual_kw": 0.29338,
+        "abs_residual_kw": 0.14341,
+        "eff_irr_kw_per_wm2": 0.13782,
+        "ac_dc_ratio": 0.05451,
+        "power_ratio": 0.01885,
+        "expected_power_ac_kw": 0.01231,
+        "irradiance_wm2": 0.01068,
+        "temp_delta_c": 0.01,
+        "temp_module_c": 0.00522,
+        "delta_power_ac_kw": 0.00308,
+        "temp_ambient_c": 0.00282,
+        "delta_irr_wm2": 0.00263,
+        "hour": 0.00169,
+        "delta_temp_module_c": 0.00113,
+        "minute": 0.00029
+      },
+      "fault_type_classifier": {
+        "accuracy": 0.9362549800796812,
+        "f1_weighted": 0.940844367886544,
+        "classification_report": {
+          "inverter_derate": {
+            "precision": 0.9842105263157894,
+            "recall": 1.0,
+            "f1-score": 0.9920424403183024,
+            "support": 187.0
+          },
+          "mppt_failure": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 7.0
+          },
+          "partial_shading": {
+            "precision": 0.9361702127659575,
+            "recall": 0.8301886792452831,
+            "f1-score": 0.88,
+            "support": 53.0
+          },
+          "sensor_flatline": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1-score": 1.0,
+            "support": 4.0
+          },
+          "string_fault": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 0.0
+          },
+          "accuracy": 0.9362549800796812,
+          "macro avg": {
+            "precision": 0.5840761478163493,
+            "recall": 0.5660377358490566,
+            "f1-score": 0.5744084880636604,
+            "support": 251.0
+          },
+          "weighted avg": {
+            "precision": 0.9468700784766868,
+            "recall": 0.9362549800796812,
+            "f1-score": 0.940844367886544,
+            "support": 251.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 1188,
+        "n_test": 251
+      },
+      "class_distribution": {
+        "count": {
+          "0": 31602,
+          "1": 1439
+        },
+        "ratio": {
+          "0": 0.9564,
+          "1": 0.0436
+        }
+      }
+    },
+    "3": {
+      "plant_id": 3,
+      "n_samples": 33241,
+      "n_train": 26592,
+      "n_test": 6649,
+      "regression_mae": 1.6437,
+      "accuracy": 0.9929,
+      "f1": 0.9194,
+      "roc_auc": 0.9936,
+      "confusion_matrix": [
+        [
+          6334,
+          30
+        ],
+        [
+          17,
+          268
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9973232561801291,
+          "recall": 0.9952859836580766,
+          "f1-score": 0.9963035784506489,
+          "support": 6364.0
+        },
+        "1": {
+          "precision": 0.8993288590604027,
+          "recall": 0.9403508771929825,
+          "f1-score": 0.9193825042881647,
+          "support": 285.0
+        },
+        "accuracy": 0.9929312678598285,
+        "macro avg": {
+          "precision": 0.9483260576202659,
+          "recall": 0.9678184304255295,
+          "f1-score": 0.9578430413694068,
+          "support": 6649.0
+        },
+        "weighted avg": {
+          "precision": 0.9931228646657476,
+          "recall": 0.9929312678598285,
+          "f1-score": 0.9930064651800357,
+          "support": 6649.0
+        }
+      },
+      "feature_importances": {
+        "power_residual_kw": 0.31321,
+        "residual_ratio": 0.30252,
+        "abs_residual_kw": 0.12145,
+        "eff_irr_kw_per_wm2": 0.11915,
+        "ac_dc_ratio": 0.05802,
+        "power_ratio": 0.02324,
+        "expected_power_ac_kw": 0.01682,
+        "irradiance_wm2": 0.01306,
+        "temp_delta_c": 0.01261,
+        "temp_module_c": 0.00815,
+        "delta_power_ac_kw": 0.00373,
+        "temp_ambient_c": 0.00303,
+        "delta_irr_wm2": 0.00209,
+        "delta_temp_module_c": 0.00161,
+        "hour": 0.00116,
+        "minute": 0.00015
+      },
+      "fault_type_classifier": {
+        "accuracy": 0.6842105263157895,
+        "f1_weighted": 0.6794157657048796,
+        "classification_report": {
+          "grid_disconnect": {
+            "precision": 1.0,
+            "recall": 0.46153846153846156,
+            "f1-score": 0.631578947368421,
+            "support": 13.0
+          },
+          "inverter_derate": {
+            "precision": 0.8782051282051282,
+            "recall": 1.0,
+            "f1-score": 0.9351535836177475,
+            "support": 137.0
+          },
+          "mppt_failure": {
+            "precision": 0.05128205128205128,
+            "recall": 0.125,
+            "f1-score": 0.07272727272727272,
+            "support": 16.0
+          },
+          "partial_shading": {
+            "precision": 0.5166666666666667,
+            "recall": 0.6326530612244898,
+            "f1-score": 0.5688073394495413,
+            "support": 49.0
+          },
+          "sensor_flatline": {
+            "precision": 1.0,
+            "recall": 0.36363636363636365,
+            "f1-score": 0.5333333333333333,
+            "support": 11.0
+          },
+          "string_fault": {
+            "precision": 0.75,
+            "recall": 0.2542372881355932,
+            "f1-score": 0.379746835443038,
+            "support": 59.0
+          },
+          "accuracy": 0.6842105263157895,
+          "macro avg": {
+            "precision": 0.6993589743589744,
+            "recall": 0.47284419575581804,
+            "f1-score": 0.5202245519898923,
+            "support": 285.0
+          },
+          "weighted avg": {
+            "precision": 0.7533378317588844,
+            "recall": 0.6842105263157895,
+            "f1-score": 0.6794157657048796,
+            "support": 285.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 1543,
+        "n_test": 285
+      },
+      "class_distribution": {
+        "count": {
+          "0": 31413,
+          "1": 1828
+        },
+        "ratio": {
+          "0": 0.945,
+          "1": 0.055
+        }
+      }
+    },
+    "4": {
+      "plant_id": 4,
+      "n_samples": 33306,
+      "n_train": 26644,
+      "n_test": 6662,
+      "regression_mae": 1.4677,
+      "accuracy": 0.8505,
+      "f1": 0.5554,
+      "roc_auc": 0.9036,
+      "confusion_matrix": [
+        [
+          5044,
+          629
+        ],
+        [
+          367,
+          622
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9321751986693771,
+          "recall": 0.8891239203243434,
+          "f1-score": 0.91014074341393,
+          "support": 5673.0
+        },
+        "1": {
+          "precision": 0.49720223820943243,
+          "recall": 0.6289180990899899,
+          "f1-score": 0.5553571428571429,
+          "support": 989.0
+        },
+        "accuracy": 0.8504953467427199,
+        "macro avg": {
+          "precision": 0.7146887184394048,
+          "recall": 0.7590210097071666,
+          "f1-score": 0.7327489431355365,
+          "support": 6662.0
+        },
+        "weighted avg": {
+          "precision": 0.8676017585770798,
+          "recall": 0.8504953467427199,
+          "f1-score": 0.8574717279605133,
+          "support": 6662.0
+        }
+      },
+      "feature_importances": {
+        "residual_ratio": 0.16665,
+        "power_residual_kw": 0.16512,
+        "eff_irr_kw_per_wm2": 0.14236,
+        "temp_module_c": 0.0684,
+        "ac_dc_ratio": 0.06701,
+        "abs_residual_kw": 0.06088,
+        "temp_ambient_c": 0.04678,
+        "power_ratio": 0.0442,
+        "expected_power_ac_kw": 0.04175,
+        "irradiance_wm2": 0.04076,
+        "temp_delta_c": 0.04031,
+        "delta_irr_wm2": 0.03269,
+        "delta_power_ac_kw": 0.03204,
+        "delta_temp_module_c": 0.03052,
+        "hour": 0.01058,
+        "minute": 0.00996
+      },
+      "fault_type_classifier": {
+        "accuracy": 0.9322548028311426,
+        "f1_weighted": 0.9301768635000259,
+        "classification_report": {
+          "grid_disconnect": {
+            "precision": 1.0,
+            "recall": 0.7692307692307693,
+            "f1-score": 0.8695652173913043,
+            "support": 13.0
+          },
+          "inverter_derate": {
+            "precision": 0.7523809523809524,
+            "recall": 1.0,
+            "f1-score": 0.8586956521739131,
+            "support": 79.0
+          },
+          "mppt_failure": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 5.0
+          },
+          "panel_soiling": {
+            "precision": 0.9959072305593452,
+            "recall": 0.9878213802435724,
+            "f1-score": 0.9918478260869565,
+            "support": 739.0
+          },
+          "partial_shading": {
+            "precision": 0.7142857142857143,
+            "recall": 0.7936507936507936,
+            "f1-score": 0.7518796992481203,
+            "support": 63.0
+          },
+          "sensor_flatline": {
+            "precision": 1.0,
+            "recall": 0.7272727272727273,
+            "f1-score": 0.8421052631578947,
+            "support": 22.0
+          },
+          "string_fault": {
+            "precision": 0.7115384615384616,
+            "recall": 0.5441176470588235,
+            "f1-score": 0.6166666666666667,
+            "support": 68.0
+          },
+          "accuracy": 0.9322548028311426,
+          "macro avg": {
+            "precision": 0.7391589083949247,
+            "recall": 0.6888704739223837,
+            "f1-score": 0.7043943321035508,
+            "support": 989.0
+          },
+          "weighted avg": {
+            "precision": 0.9340729565278733,
+            "recall": 0.9322548028311426,
+            "f1-score": 0.9301768635000259,
+            "support": 989.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "panel_soiling",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 4477,
+        "n_test": 989
+      },
+      "class_distribution": {
+        "count": {
+          "0": 27840,
+          "1": 5466
+        },
+        "ratio": {
+          "0": 0.8359,
+          "1": 0.1641
+        }
+      }
+    },
+    "5": {
+      "plant_id": 5,
+      "n_samples": 33101,
+      "n_train": 26480,
+      "n_test": 6621,
+      "regression_mae": 1.1035,
+      "accuracy": 0.9971,
+      "f1": 0.982,
+      "roc_auc": 0.9975,
+      "confusion_matrix": [
+        [
+          6085,
+          15
+        ],
+        [
+          4,
+          517
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9993430776810642,
+          "recall": 0.9975409836065574,
+          "f1-score": 0.9984412174911805,
+          "support": 6100.0
+        },
+        "1": {
+          "precision": 0.9718045112781954,
+          "recall": 0.9923224568138196,
+          "f1-score": 0.9819563152896487,
+          "support": 521.0
+        },
+        "accuracy": 0.9971303428485123,
+        "macro avg": {
+          "precision": 0.9855737944796299,
+          "recall": 0.9949317202101885,
+          "f1-score": 0.9901987663904146,
+          "support": 6621.0
+        },
+        "weighted avg": {
+          "precision": 0.9971760948845237,
+          "recall": 0.9971303428485123,
+          "f1-score": 0.9971440366956816,
+          "support": 6621.0
+        }
+      },
+      "feature_importances": {
+        "power_residual_kw": 0.31261,
+        "residual_ratio": 0.30505,
+        "abs_residual_kw": 0.12752,
+        "eff_irr_kw_per_wm2": 0.12567,
+        "ac_dc_ratio": 0.0542,
+        "power_ratio": 0.02041,
+        "expected_power_ac_kw": 0.01342,
+        "irradiance_wm2": 0.013,
+        "temp_delta_c": 0.0128,
+        "temp_module_c": 0.00503,
+        "delta_power_ac_kw": 0.00363,
+        "delta_irr_wm2": 0.00209,
+        "temp_ambient_c": 0.00191,
+        "delta_temp_module_c": 0.00137,
+        "hour": 0.00108,
+        "minute": 0.00021
+      },
+      "fault_type_classifier": {
+        "accuracy": 0.8694817658349329,
+        "f1_weighted": 0.8436524359920881,
+        "classification_report": {
+          "grid_disconnect": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 0.0
+          },
+          "inverter_derate": {
+            "precision": 0.9528795811518325,
+            "recall": 1.0,
+            "f1-score": 0.9758713136729222,
+            "support": 364.0
+          },
+          "mppt_failure": {
+            "precision": 0.8571428571428571,
+            "recall": 0.8,
+            "f1-score": 0.8275862068965517,
+            "support": 15.0
+          },
+          "partial_shading": {
+            "precision": 0.5576923076923077,
+            "recall": 0.9354838709677419,
+            "f1-score": 0.6987951807228916,
+            "support": 62.0
+          },
+          "sensor_flatline": {
+            "precision": 1.0,
+            "recall": 0.5625,
+            "f1-score": 0.72,
+            "support": 16.0
+          },
+          "string_fault": {
+            "precision": 0.9090909090909091,
+            "recall": 0.15625,
+            "f1-score": 0.26666666666666666,
+            "support": 64.0
+          },
+          "accuracy": 0.8694817658349329,
+          "macro avg": {
+            "precision": 0.7128009425129843,
+            "recall": 0.5757056451612903,
+            "f1-score": 0.5814865613265053,
+            "support": 521.0
+          },
+          "weighted avg": {
+            "precision": 0.8991632469388697,
+            "recall": 0.8694817658349329,
+            "f1-score": 0.8436524359920881,
+            "support": 521.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 1504,
+        "n_test": 521
+      },
+      "class_distribution": {
+        "count": {
+          "0": 31076,
+          "1": 2025
+        },
+        "ratio": {
+          "0": 0.9388,
+          "1": 0.0612
+        }
+      }
+    },
+    "6": {
+      "plant_id": 6,
+      "n_samples": 32970,
+      "n_train": 26376,
+      "n_test": 6594,
+      "regression_mae": 4.1453,
+      "accuracy": 0.9023,
+      "f1": 0.9141,
+      "roc_auc": 0.963,
+      "confusion_matrix": [
+        [
+          2525,
+          460
+        ],
+        [
+          184,
+          3425
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.932078257659653,
+          "recall": 0.8458961474036851,
+          "f1-score": 0.8868984896382157,
+          "support": 2985.0
+        },
+        "1": {
+          "precision": 0.8815958815958816,
+          "recall": 0.9490163480188418,
+          "f1-score": 0.9140645850013344,
+          "support": 3609.0
+        },
+        "accuracy": 0.9023354564755839,
+        "macro avg": {
+          "precision": 0.9068370696277673,
+          "recall": 0.8974562477112635,
+          "f1-score": 0.900481537319775,
+          "support": 6594.0
+        },
+        "weighted avg": {
+          "precision": 0.9044484585674251,
+          "recall": 0.9023354564755839,
+          "f1-score": 0.9017669212678024,
+          "support": 6594.0
+        }
+      },
+      "feature_importances": {
+        "power_residual_kw": 0.21334,
+        "residual_ratio": 0.1982,
+        "eff_irr_kw_per_wm2": 0.19665,
+        "temp_module_c": 0.06134,
+        "ac_dc_ratio": 0.04144,
+        "power_ratio": 0.04012,
+        "irradiance_wm2": 0.03691,
+        "expected_power_ac_kw": 0.03677,
+        "temp_delta_c": 0.03596,
+        "abs_residual_kw": 0.03579,
+        "temp_ambient_c": 0.03422,
+        "delta_power_ac_kw": 0.01967,
+        "delta_temp_module_c": 0.01957,
+        "delta_irr_wm2": 0.01891,
+        "minute": 0.00581,
+        "hour": 0.00532
+      },
+      "fault_type_classifier": {
+        "accuracy": 0.9648101967303963,
+        "f1_weighted": 0.9653536795279416,
+        "classification_report": {
+          "inverter_derate": {
+            "precision": 0.935,
+            "recall": 0.9211822660098522,
+            "f1-score": 0.9280397022332506,
+            "support": 203.0
+          },
+          "mppt_failure": {
+            "precision": 0.927710843373494,
+            "recall": 0.5789473684210527,
+            "f1-score": 0.7129629629629629,
+            "support": 133.0
+          },
+          "panel_soiling": {
+            "precision": 0.9897991711826586,
+            "recall": 0.9932821497120922,
+            "f1-score": 0.9915376017882804,
+            "support": 3126.0
+          },
+          "partial_shading": {
+            "precision": 0.37681159420289856,
+            "recall": 0.6190476190476191,
+            "f1-score": 0.46846846846846846,
+            "support": 42.0
+          },
+          "sensor_flatline": {
+            "precision": 1.0,
+            "recall": 0.7647058823529411,
+            "f1-score": 0.8666666666666667,
+            "support": 17.0
+          },
+          "string_fault": {
+            "precision": 0.6915887850467289,
+            "recall": 0.8409090909090909,
+            "f1-score": 0.7589743589743589,
+            "support": 88.0
+          },
+          "accuracy": 0.9648101967303963,
+          "macro avg": {
+            "precision": 0.8201517323009634,
+            "recall": 0.7863457294087747,
+            "f1-score": 0.7877749601823313,
+            "support": 3609.0
+          },
+          "weighted avg": {
+            "precision": 0.9700716684195897,
+            "recall": 0.9648101967303963,
+            "f1-score": 0.9653536795279416,
+            "support": 3609.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "panel_soiling",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 13048,
+        "n_test": 3609
+      },
+      "class_distribution": {
+        "count": {
+          "0": 16313,
+          "1": 16657
+        },
+        "ratio": {
+          "0": 0.4948,
+          "1": 0.5052
+        }
+      }
+    },
+    "7": {
+      "plant_id": 7,
+      "n_samples": 33246,
+      "n_train": 26596,
+      "n_test": 6650,
+      "regression_mae": 0.7514,
+      "accuracy": 0.9842,
+      "f1": 0.8811,
+      "roc_auc": 0.9923,
+      "confusion_matrix": [
+        [
+          6156,
+          94
+        ],
+        [
+          11,
+          389
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.9982163126317496,
+          "recall": 0.98496,
+          "f1-score": 0.9915438511717807,
+          "support": 6250.0
+        },
+        "1": {
+          "precision": 0.8053830227743272,
+          "recall": 0.9725,
+          "f1-score": 0.8810872027180068,
+          "support": 400.0
+        },
+        "accuracy": 0.9842105263157894,
+        "macro avg": {
+          "precision": 0.9017996677030384,
+          "recall": 0.97873,
+          "f1-score": 0.9363155269448937,
+          "support": 6650.0
+        },
+        "weighted avg": {
+          "precision": 0.9866173177531076,
+          "recall": 0.9842105263157894,
+          "f1-score": 0.9848998422422304,
+          "support": 6650.0
+        }
+      },
+      "feature_importances": {
+        "power_residual_kw": 0.23803,
+        "residual_ratio": 0.2349,
+        "eff_irr_kw_per_wm2": 0.14588,
+        "abs_residual_kw": 0.08761,
+        "ac_dc_ratio": 0.06562,
+        "power_ratio": 0.03505,
+        "expected_power_ac_kw": 0.02853,
+        "irradiance_wm2": 0.02717,
+        "temp_delta_c": 0.02523,
+        "temp_module_c": 0.02202,
+        "temp_ambient_c": 0.0214,
+        "delta_power_ac_kw": 0.02053,
+        "delta_irr_wm2": 0.01948,
+        "delta_temp_module_c": 0.017,
+        "hour": 0.00743,
+        "minute": 0.00412
+      },
+      "fault_type_classifier": {
+        "accuracy": 0.74,
+        "f1_weighted": 0.7583178478156214,
+        "classification_report": {
+          "inverter_derate": {
+            "precision": 0.961352657004831,
+            "recall": 1.0,
+            "f1-score": 0.9802955665024631,
+            "support": 199.0
+          },
+          "mppt_failure": {
+            "precision": 0.8703703703703703,
+            "recall": 0.35877862595419846,
+            "f1-score": 0.5081081081081081,
+            "support": 131.0
+          },
+          "panel_soiling": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 0.0
+          },
+          "partial_shading": {
+            "precision": 0.23469387755102042,
+            "recall": 0.7931034482758621,
+            "f1-score": 0.36220472440944884,
+            "support": 29.0
+          },
+          "sensor_flatline": {
+            "precision": 1.0,
+            "recall": 0.5517241379310345,
+            "f1-score": 0.7111111111111111,
+            "support": 29.0
+          },
+          "string_fault": {
+            "precision": 0.8461538461538461,
+            "recall": 0.9166666666666666,
+            "f1-score": 0.88,
+            "support": 12.0
+          },
+          "accuracy": 0.74,
+          "macro avg": {
+            "precision": 0.6520951251800113,
+            "recall": 0.6033788131379604,
+            "f1-score": 0.5736199183551886,
+            "support": 400.0
+          },
+          "weighted avg": {
+            "precision": 0.878219164663264,
+            "recall": 0.74,
+            "f1-score": 0.7583178478156214,
+            "support": 400.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "panel_soiling",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 1540,
+        "n_test": 400
+      },
+      "class_distribution": {
+        "count": {
+          "0": 31306,
+          "1": 1940
+        },
+        "ratio": {
+          "0": 0.9416,
+          "1": 0.0584
+        }
+      }
+    },
+    "8": {
+      "plant_id": 8,
+      "n_samples": 33073,
+      "n_train": 26458,
+      "n_test": 6615,
+      "regression_mae": 0.3923,
+      "accuracy": 0.9973,
+      "f1": 0.9659,
+      "roc_auc": 0.9948,
+      "confusion_matrix": [
+        [
+          6342,
+          12
+        ],
+        [
+          6,
+          255
+        ]
+      ],
+      "classification_report": {
+        "0": {
+          "precision": 0.999054820415879,
+          "recall": 0.9981114258734656,
+          "f1-score": 0.9985829003306566,
+          "support": 6354.0
+        },
+        "1": {
+          "precision": 0.9550561797752809,
+          "recall": 0.9770114942528736,
+          "f1-score": 0.9659090909090909,
+          "support": 261.0
+        },
+        "accuracy": 0.9972789115646259,
+        "macro avg": {
+          "precision": 0.97705550009558,
+          "recall": 0.9875614600631696,
+          "f1-score": 0.9822459956198737,
+          "support": 6615.0
+        },
+        "weighted avg": {
+          "precision": 0.997318819628699,
+          "recall": 0.9972789115646259,
+          "f1-score": 0.9972937296187853,
+          "support": 6615.0
+        }
+      },
+      "feature_importances": {
+        "residual_ratio": 0.30347,
+        "power_residual_kw": 0.29187,
+        "abs_residual_kw": 0.16644,
+        "eff_irr_kw_per_wm2": 0.11845,
+        "ac_dc_ratio": 0.04703,
+        "power_ratio": 0.01865,
+        "expected_power_ac_kw": 0.01185,
+        "irradiance_wm2": 0.0111,
+        "temp_delta_c": 0.0108,
+        "delta_power_ac_kw": 0.0073,
+        "temp_module_c": 0.00486,
+        "delta_irr_wm2": 0.00269,
+        "temp_ambient_c": 0.0026,
+        "hour": 0.00148,
+        "delta_temp_module_c": 0.00124,
+        "minute": 0.00015
+      },
+      "fault_type_classifier": {
+        "accuracy": 0.8122605363984674,
+        "f1_weighted": 0.7980241450073251,
+        "classification_report": {
+          "grid_disconnect": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1-score": 0.0,
+            "support": 7.0
+          },
+          "inverter_derate": {
+            "precision": 0.8495575221238938,
+            "recall": 1.0,
+            "f1-score": 0.9186602870813397,
+            "support": 96.0
+          },
+          "mppt_failure": {
+            "precision": 0.98,
+            "recall": 0.5833333333333334,
+            "f1-score": 0.7313432835820896,
+            "support": 84.0
+          },
+          "partial_shading": {
+            "precision": 0.6041666666666666,
+            "recall": 0.9354838709677419,
+            "f1-score": 0.7341772151898734,
+            "support": 31.0
+          },
+          "sensor_flatline": {
+            "precision": 1.0,
+            "recall": 0.8095238095238095,
+            "f1-score": 0.8947368421052632,
+            "support": 21.0
+          },
+          "string_fault": {
+            "precision": 0.65625,
+            "recall": 0.9545454545454546,
+            "f1-score": 0.7777777777777778,
+            "support": 22.0
+          },
+          "accuracy": 0.8122605363984674,
+          "macro avg": {
+            "precision": 0.6816623647984267,
+            "recall": 0.7138144113950565,
+            "f1-score": 0.6761159009560572,
+            "support": 261.0
+          },
+          "weighted avg": {
+            "precision": 0.8354183478565536,
+            "recall": 0.8122605363984674,
+            "f1-score": 0.7980241450073251,
+            "support": 261.0
+          }
+        },
+        "classes": [
+          "grid_disconnect",
+          "inverter_derate",
+          "mppt_failure",
+          "partial_shading",
+          "sensor_flatline",
+          "string_fault"
+        ],
+        "n_train": 942,
+        "n_test": 261
+      },
+      "class_distribution": {
+        "count": {
+          "0": 31870,
+          "1": 1203
+        },
+        "ratio": {
+          "0": 0.9636,
+          "1": 0.0364
+        }
+      }
+    }
+  },
+  "summary": {
+    "total_samples": 265142,
+    "weighted_mae": 1.6026,
+    "weighted_acc": 0.9523,
+    "weighted_f1": 0.8844,
+    "weighted_auc": 0.9759
   }
 }

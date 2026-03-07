@@ -24,7 +24,7 @@ function formatDuration(minutes: number) {
   return m > 0 ? `${h}h ${m}min` : `${h}h`
 }
 
-// ── Fault type badge ──────────────────────────────────────────────────────────
+// ── Fault type config ─────────────────────────────────────────────────────────
 
 const FAULT_COLORS: Record<string, string> = {
   inverter_derate:  '#f59e0b',
@@ -38,33 +38,52 @@ const FAULT_COLORS: Record<string, string> = {
   unknown:          '#6b7f94',
 }
 
-function FaultTypeBadge({ type, label }: { type: string | null; label: string | null }) {
-  if (!type || !label) return null
+const FAULT_LABELS: Record<string, string> = {
+  inverter_derate:  'Derate Inversor',
+  string_fault:     'Falla de String',
+  grid_disconnect:  'Desconexión Red',
+  mppt_failure:     'Falla MPPT',
+  partial_shading:  'Sombra Parcial',
+  panel_soiling:    'Ensuciamiento',
+  pid_effect:       'Efecto PID',
+  sensor_flatline:  'Sensor Plano',
+  unknown:          'Desconocido',
+}
+
+function FaultTypeBadge({ type, proba }: { type: string | null; proba: number | null }) {
+  if (!type) return <span style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>—</span>
   const color = FAULT_COLORS[type] ?? '#6b7f94'
+  const label = FAULT_LABELS[type] ?? type
   return (
-    <span style={{
-      display: 'inline-block',
-      fontSize: '0.62rem',
-      fontFamily: 'JetBrains Mono, monospace',
-      letterSpacing: '0.05em',
-      color,
-      border: `1px solid ${color}55`,
-      background: `${color}11`,
-      borderRadius: '4px',
-      padding: '2px 8px',
-      marginTop: '4px',
-    }}>
-      {label.toUpperCase()}
-    </span>
+    <div>
+      <span style={{
+        display: 'inline-block',
+        fontSize: '0.6rem',
+        fontFamily: 'JetBrains Mono, monospace',
+        letterSpacing: '0.04em',
+        color,
+        border: `1px solid ${color}44`,
+        background: `${color}11`,
+        borderRadius: '3px',
+        padding: '2px 7px',
+      }}>
+        {label.toUpperCase()}
+      </span>
+      {proba != null && (
+        <div style={{ fontSize: '0.55rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+          {(proba * 100).toFixed(0)}% confianza
+        </div>
+      )}
+    </div>
   )
 }
 
 // ── SHAP Bar ──────────────────────────────────────────────────────────────────
 
 function ShapBar({ feature, value, maxAbs }: { feature: string; value: number; maxAbs: number }) {
-  const pct = Math.abs(value) / maxAbs * 100
+  const pct      = Math.abs(value) / maxAbs * 100
   const positive = value > 0
-  const color = positive ? '#f85149' : '#3fb950'
+  const color    = positive ? '#f85149' : '#3fb950'
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 60px', gap: '8px', alignItems: 'center', marginBottom: '5px' }}>
       <span style={{ fontSize: '0.62rem', color: 'var(--text-dim)', textAlign: 'right', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -82,9 +101,9 @@ function ShapBar({ feature, value, maxAbs }: { feature: string; value: number; m
 // ── XAI Drawer ────────────────────────────────────────────────────────────────
 
 function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void }) {
-  const [state, setState] = useState<'loading' | 'success' | 'error'>('loading')
+  const [state, setState]   = useState<'loading' | 'success' | 'error'>('loading')
   const [result, setResult] = useState<ExplainResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]   = useState<string | null>(null)
 
   useEffect(() => {
     fetchExplain(pkg.representative_id, pkg.reading_count, pkg.duration_minutes)
@@ -92,8 +111,8 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
       .catch(e => { setError(e.message); setState('error') })
   }, [pkg.representative_id])
 
-  const maxAbs = result ? Math.max(...Object.values(result.top_reasons).map(Math.abs), 0.001) : 1
-  const faultColor = result?.inferred_fault_type ? (FAULT_COLORS[result.inferred_fault_type] ?? '#6b7f94') : '#6b7f94'
+  const maxAbs      = result ? Math.max(...Object.values(result.top_reasons).map(Math.abs), 0.001) : 1
+  const faultColor  = result?.inferred_fault_type ? (FAULT_COLORS[result.inferred_fault_type] ?? '#6b7f94') : '#6b7f94'
 
   return (
     <>
@@ -135,7 +154,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
 
           {state === 'success' && result && (
             <>
-              {/* ── Métricas del evento ── */}
+              {/* Métricas del evento */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px' }}>
                   <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>MÁX. PROB.</p>
@@ -145,9 +164,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
                 </div>
                 <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px' }}>
                   <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>LECTURAS</p>
-                  <p style={{ fontSize: '1.2rem', fontFamily: 'Syne, sans-serif', fontWeight: 700, margin: '2px 0 0', color: '#f59e0b' }}>
-                    {pkg.reading_count}
-                  </p>
+                  <p style={{ fontSize: '1.2rem', fontFamily: 'Syne, sans-serif', fontWeight: 700, margin: '2px 0 0', color: '#f59e0b' }}>{pkg.reading_count}</p>
                   <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: '2px 0 0' }}>consecutivas</p>
                 </div>
                 <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px' }}>
@@ -158,17 +175,14 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
                 </div>
               </div>
 
-              {/* ── Tipo de falla ── */}
+              {/* Tipo de falla */}
               {result.fault_type_label && (
                 <div style={{ background: `${faultColor}0d`, border: `1px solid ${faultColor}33`, borderRadius: '6px', padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: faultColor, flexShrink: 0 }} />
                     <div>
                       <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>
-                        TIPO DE FALLA
-                        {result.fault_type_source === 'model'
-                          ? ' · CLASIFICADOR ML'
-                          : ' · REGLAS FÍSICAS'}
+                        TIPO DE FALLA · {result.fault_type_source === 'model' ? 'CLASIFICADOR ML' : 'REGLAS FÍSICAS'}
                       </p>
                       <p style={{ fontSize: '0.82rem', fontFamily: 'Syne, sans-serif', color: faultColor, margin: '2px 0 0', fontWeight: 600 }}>
                         {result.fault_type_label}
@@ -186,7 +200,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
                 </div>
               )}
 
-              {/* ── Análisis ── */}
+              {/* Análisis */}
               {result.analysis_text && (
                 <div style={{ background: 'rgba(88,166,255,0.05)', border: '1px solid rgba(88,166,255,0.2)', borderRadius: '6px', padding: '12px 14px' }}>
                   <p style={{ fontSize: '0.6rem', color: '#58a6ff', letterSpacing: '0.08em', margin: '0 0 6px' }}>🔍 ANÁLISIS</p>
@@ -194,7 +208,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
                 </div>
               )}
 
-              {/* ── Recomendación ── */}
+              {/* Recomendación */}
               {result.recommendation_text && (
                 <div style={{ background: 'rgba(63,185,80,0.05)', border: '1px solid rgba(63,185,80,0.25)', borderRadius: '6px', padding: '12px 14px' }}>
                   <p style={{ fontSize: '0.6rem', color: '#3fb950', letterSpacing: '0.08em', margin: '0 0 6px' }}>⚡ RECOMENDACIÓN</p>
@@ -202,7 +216,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
                 </div>
               )}
 
-              {/* ── SHAP bars ── */}
+              {/* SHAP bars */}
               <div>
                 <p style={{ fontSize: '0.6rem', color: 'var(--text-dim)', letterSpacing: '0.08em', marginBottom: '12px' }}>CONTRIBUCIÓN DE FEATURES (SHAP)</p>
                 <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', display: 'flex', justifyContent: 'space-between', marginBottom: '8px', paddingLeft: '168px' }}>
@@ -212,7 +226,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
               </div>
 
               <p style={{ fontSize: '0.58rem', color: 'var(--text-dim)', borderTop: '1px solid var(--border)', paddingTop: '10px', margin: 0 }}>
-                Tipo de falla inferido por reglas físicas sobre SHAP values (sin reentrenamiento). Basado en pred. #{result.prediction_id}.
+                Basado en pred. #{result.prediction_id}.
               </p>
             </>
           )}
@@ -226,7 +240,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
 
 function PackageRow({ pkg, onExplain }: { pkg: FaultPackage; onExplain: (pkg: FaultPackage) => void }) {
   const isPoint = pkg.start_ts === pkg.end_ts || pkg.duration_minutes === 0
-  const color = probaColor(pkg.max_fault_proba)
+  const color   = probaColor(pkg.max_fault_proba)
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
       <td className="py-3 pr-3 pl-2" style={{ fontSize: '0.68rem', minWidth: '180px' }}>
@@ -243,13 +257,16 @@ function PackageRow({ pkg, onExplain }: { pkg: FaultPackage; onExplain: (pkg: Fa
           <div style={{ height: '100%', borderRadius: '2px', background: color, width: `${(pkg.max_fault_proba ?? 0) * 100}%` }} />
         </div>
       </td>
+      {/* Tipo de falla — disponible sin abrir XAI */}
+      <td className="py-3 pr-3">
+        <FaultTypeBadge type={pkg.fault_type_pred} proba={pkg.fault_type_proba} />
+      </td>
       <td className="py-3 pr-3" style={{ fontSize: '0.7rem' }}>{safe(pkg.representative_expected_kw)}</td>
       <td className="py-3 pr-3" style={{ fontSize: '0.7rem', color: (pkg.representative_residual_kw ?? 0) < 0 ? '#f85149' : 'var(--text)' }}>
         {safe(pkg.representative_residual_kw)}
       </td>
-      <td className="py-3 pr-3" style={{ fontSize: '0.62rem', color: 'var(--text-dim)' }}>{pkg.model_version ?? '—'}</td>
       <td className="py-3 text-right pr-2">
-        <button onClick={() => onExplain(pkg)} style={{ background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.3)', color: '#58a6ff', borderRadius: '3px', padding: '3px 10px', fontSize: '0.62rem', fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer', letterSpacing: '0.05em' }}>XAI</button>
+        <button onClick={() => onExplain(pkg)} style={{ background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.3)', color: '#58a6ff', borderRadius: '3px', padding: '3px 10px', fontSize: '0.62rem', fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer', letterSpacing: '0.05em' }}>XAI ›</button>
       </td>
     </tr>
   )
@@ -285,7 +302,7 @@ export default function AlertsTable({ packages }: Props) {
         <table className="w-full" style={{ borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)' }}>
-              {['INICIO → FIN', 'DURACIÓN', 'MÁX. PROB.', 'POT. ESPERADA (kW)', 'RESIDUAL (kW)', 'MODELO', ''].map(h => (
+              {['INICIO → FIN', 'DURACIÓN', 'MÁX. PROB.', 'TIPO DE FALLA', 'POT. ESPERADA (kW)', 'RESIDUAL (kW)', ''].map(h => (
                 <th key={h} className="py-2 pr-3 text-left font-normal px-2" style={{ fontSize: '0.6rem', letterSpacing: '0.06em' }}>{h}</th>
               ))}
             </tr>

@@ -5,10 +5,10 @@
     "temp_ambient_c",
     "temp_delta_c",
     "hour",
-    "minute"
+    "minute",
+    "capacity_kw"
   ],
   "clf_features": [
-    "plant_id",
     "irradiance_wm2",
     "temp_module_c",
     "temp_ambient_c",
@@ -16,6 +16,8 @@
     "expected_power_ac_kw",
     "power_residual_kw",
     "abs_residual_kw",
+    "power_ratio",
+    "residual_ratio",
     "delta_power_ac_kw",
     "delta_irr_wm2",
     "delta_temp_module_c",

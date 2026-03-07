@@ -61,12 +61,12 @@ services:
     environment:
       SOLAR_API_URL: "http://backend:8000"
       SOLAR_INGEST_ENDPOINT: "/ingest_batch"
-      SOLAR_BATCH_SIZE: "250"
-      SOLAR_N_PLANTS: "3"
+      SOLAR_BATCH_SIZE: "1000"
+      SOLAR_N_PLANTS: "8"
       SOLAR_FAULT_LEVEL: "1"
       SOLAR_STEP_DELAY_S: "2.0"
       SOLAR_START_TS: "2025-01-01T00:00:00"
-      AUTOSTART: "false"
+      AUTOSTART: "False"
       SOLAR_OUTPUT_DIR: "/app/output"
     restart: "no"
 

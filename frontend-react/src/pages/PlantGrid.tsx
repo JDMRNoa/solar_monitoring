@@ -4,9 +4,14 @@ import { useLiveWeather, type LivePlantData } from '../hooks/useLiveWeather'
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const PLANT_META = [
-  { id: 1, name: 'Planta Caribe',  location: 'Barranquilla', capacity_kw: 200, panel_count: 500, inverter_count: 6 },
-  { id: 2, name: 'Planta Andina',  location: 'Bogotá',       capacity_kw: 80,  panel_count: 200, inverter_count: 3 },
-  { id: 3, name: 'Planta Paisa',   location: 'Medellín',     capacity_kw: 150, panel_count: 380, inverter_count: 5 },
+  { id: 1, name: 'Caribe',        location: 'Barranquilla', capacity_kw: 200, panel_count: 500, inverter_count: 6 },
+  { id: 2, name: 'Andina',        location: 'Bogotá',       capacity_kw: 80,  panel_count: 200, inverter_count: 3 },
+  { id: 3, name: 'Paisa',         location: 'Medellín',     capacity_kw: 150, panel_count: 380, inverter_count: 5 },
+  { id: 4, name: 'Valle',         location: 'Cali',         capacity_kw: 120, panel_count: 300, inverter_count: 4 },
+  { id: 5, name: 'Llanos',        location: 'Villavicencio',capacity_kw: 90,  panel_count: 225, inverter_count: 3 },
+  { id: 6, name: 'Guajira',       location: 'Riohacha',     capacity_kw: 300, panel_count: 750, inverter_count: 8 },
+  { id: 7, name: 'Sierra Nevada', location: 'Santa Marta',  capacity_kw: 60,  panel_count: 150, inverter_count: 2 },
+  { id: 8, name: 'Boyacá',        location: 'Tunja',        capacity_kw: 45,  panel_count: 112, inverter_count: 2 },
 ]
 
 const FAULT_INFO: Record<string, { label: string; icon: string; color: string; bg: string }> = {
@@ -38,8 +43,7 @@ function Sparkline({ history, maxKw }: { history: number[]; maxKw: number }) {
     const c = ref.current
     if (!c || history.length < 2) return
     const ctx = c.getContext('2d')!
-    const w = c.offsetWidth || 220
-    const h = c.offsetHeight || 52
+    const w = c.offsetWidth || 200; const h = c.offsetHeight || 44
     c.width = w; c.height = h
     ctx.clearRect(0, 0, w, h)
     const pts = history.slice(-48)
@@ -50,8 +54,7 @@ function Sparkline({ history, maxKw }: { history: number[]; maxKw: number }) {
     grad.addColorStop(1, 'rgba(0,212,255,0.0)')
     ctx.beginPath()
     pts.forEach((v, i) => {
-      const x = i * dx
-      const y = h - (v / max) * (h * 0.82) - 4
+      const x = i * dx; const y = h - (v / max) * (h * 0.82) - 3
       i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
     })
     ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.5; ctx.stroke()
@@ -94,11 +97,11 @@ function PanelArray({ reading, meta }: { reading: LivePlantData | null; meta: ty
 
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: 'repeat(10,1fr)', gap: '3px',
-      padding: '10px', background: '#080c10', borderRadius: '4px',
+      display: 'grid', gridTemplateColumns: 'repeat(8,1fr)', gap: '2px',
+      padding: '8px', background: '#080c10', borderRadius: '4px',
       border: '1px solid var(--border)', position: 'relative',
     }}>
-      {Array.from({ length: 40 }).map((_, i) => (
+      {Array.from({ length: 32 }).map((_, i) => (
         <div key={i} style={{
           aspectRatio: '1.4/1', borderRadius: '2px',
           transition: 'background 0.5s, opacity 0.5s',
@@ -122,10 +125,12 @@ function InverterRow({ reading, meta }: { reading: LivePlantData | null; meta: t
   const pAc = reading?.power_ac_kw ?? 0
   const ft = reading?.fault_type ?? ''
   const loadPerInv = meta.capacity_kw / meta.inverter_count
+  // Máximo 6 inversores visibles para no romper el layout 4-col
+  const visibleCount = Math.min(meta.inverter_count, 6)
 
   return (
-    <div style={{ display: 'flex', gap: '6px', padding: '0 16px 12px' }}>
-      {Array.from({ length: meta.inverter_count }).map((_, i) => {
+    <div style={{ display: 'flex', gap: '4px', padding: '0 12px 10px' }}>
+      {Array.from({ length: visibleCount }).map((_, i) => {
         let invPow = reading ? pAc / meta.inverter_count : 0
         let border = 'rgba(0,230,118,0.3)', bg = 'transparent', color = 'var(--text)'
         if (ft === 'inverter_derate' && i < Math.ceil(meta.inverter_count / 2)) {
@@ -140,78 +145,98 @@ function InverterRow({ reading, meta }: { reading: LivePlantData | null; meta: t
           <div key={i} style={{
             flex: 1, background: bg || '#0a0e14',
             border: `1px solid ${border}`, borderRadius: '3px',
-            padding: '5px 6px', textAlign: 'center', fontSize: '0.60rem', transition: 'all 0.4s',
+            padding: '4px 5px', textAlign: 'center', fontSize: '0.55rem', transition: 'all 0.4s',
           }}>
-            <div style={{ color: 'var(--text-dim)', fontSize: '0.55rem', textTransform: 'uppercase' }}>INV {i + 1}</div>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, color }}>{reading ? pct + '%' : '–'}</div>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.5rem', textTransform: 'uppercase' }}>I{i + 1}</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color }}>{reading ? pct + '%' : '–'}</div>
           </div>
         )
       })}
+      {meta.inverter_count > visibleCount && (
+        <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.52rem', color: 'var(--text-dim)', paddingLeft: '2px' }}>
+          +{meta.inverter_count - visibleCount}
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Weather Bar ───────────────────────────────────────────────────────────────
+// ── Weather Bar (por planta seleccionada) ─────────────────────────────────────
 
-function WeatherBar({ data }: { data: Record<number, LivePlantData> }) {
-  const r = Object.values(data)[0]
+function WeatherBar({
+  data,
+  selectedId,
+  onSelect,
+}: {
+  data: Record<number, LivePlantData>
+  selectedId: number
+  onSelect: (id: number) => void
+}) {
+  const r = data[selectedId] ?? Object.values(data)[0]
+  const meta = PLANT_META.find(m => m.id === selectedId) ?? PLANT_META[0]
+
   if (!r) return (
     <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
       Sin datos de clima en tiempo real — arranca el simulador.
     </div>
   )
 
-  const cloudPct = r.cloud_cover != null ? Math.round(r.cloud_cover * 100) : null
+  const cloudPct   = r.cloud_cover != null ? Math.round(r.cloud_cover * 100) : null
   const soilingPct = r.soiling != null ? Math.round(r.soiling * 100) : null
 
   return (
     <div style={{
-      display: 'flex', gap: '20px', padding: '10px 0 16px', flexWrap: 'wrap',
-      alignItems: 'center', borderBottom: '1px solid var(--border)', marginBottom: '20px',
-      fontSize: '0.68rem', color: 'var(--text-dim)',
+      borderBottom: '1px solid var(--border)', marginBottom: '20px', paddingBottom: '12px',
     }}>
-      <span style={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.60rem', flexShrink: 0 }}>
-        Condiciones
-      </span>
+      {/* Datos de clima — planta seleccionada desde las tarjetas */}
+      <div style={{
+        display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center',
+        fontSize: '0.68rem', color: 'var(--text-dim)',
+      }}>
+        <span style={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.60rem', flexShrink: 0, color: '#f59e0b' }}>
+          {meta.name}
+        </span>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span>☁</span>
-        <span>Nubosidad:</span>
-        <div style={{ width: '60px', height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', borderRadius: '2px', transition: 'width 1s',
-            background: 'linear-gradient(90deg,#4fc3f7,#81d4fa)',
-            width: cloudPct != null ? cloudPct + '%' : '0%',
-          }} />
-        </div>
-        <span>{cloudPct != null ? cloudPct + '%' : '–'}</span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span>🌡</span>
-        <span>{r.temp_ambient_c != null ? r.temp_ambient_c.toFixed(1) + '°C' : '–'}</span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span>💨</span>
-        <span>{r.wind_ms != null ? r.wind_ms.toFixed(1) + ' m/s' : '–'}</span>
-      </div>
-
-      {soilingPct != null && soilingPct > 5 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>🟫</span>
-          <span style={{ color: soilingPct > 15 ? '#ffd600' : 'var(--text-dim)' }}>
-            Suciedad: {soilingPct}%
-          </span>
+          <span>☁</span>
+          <span>Nubosidad:</span>
+          <div style={{ width: '50px', height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div style={{ height: '100%', borderRadius: '2px', transition: 'width 1s', background: 'linear-gradient(90deg,#4fc3f7,#81d4fa)', width: cloudPct != null ? cloudPct + '%' : '0%' }} />
+          </div>
+          <span>{cloudPct != null ? cloudPct + '%' : '–'}</span>
         </div>
-      )}
 
-      {r.rain_active && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>🌧</span>
-          <span style={{ color: '#00d4ff' }}>Lluvia activa – limpieza paneles</span>
+          <span>🌡</span>
+          <span>{r.temp_ambient_c != null ? r.temp_ambient_c.toFixed(1) + '°C' : '–'}</span>
         </div>
-      )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>💨</span>
+          <span>{r.wind_ms != null ? r.wind_ms.toFixed(1) + ' m/s' : '–'}</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span>☀</span>
+          <span>{r.irradiance_wm2 != null ? Math.round(r.irradiance_wm2) + ' W/m²' : '–'}</span>
+        </div>
+
+        {soilingPct != null && soilingPct > 5 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>🟫</span>
+            <span style={{ color: soilingPct > 15 ? '#ffd600' : 'var(--text-dim)' }}>
+              Suciedad: {soilingPct}%
+            </span>
+          </div>
+        )}
+
+        {r.rain_active && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>🌧</span>
+            <span style={{ color: '#00d4ff' }}>Lluvia – limpieza paneles</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -224,13 +249,13 @@ function MlBadge({ reading }: { reading: LivePlantData | null }) {
   const color = pct > 80 ? '#f85149' : pct > 50 ? '#f59e0b' : '#3fb950'
   return (
     <div style={{
-      padding: '4px 12px', borderTop: '1px solid var(--border)',
-      display: 'flex', gap: '16px', fontSize: '0.62rem', color: 'var(--text-dim)',
+      padding: '4px 10px', borderTop: '1px solid var(--border)',
+      display: 'flex', gap: '12px', fontSize: '0.6rem', color: 'var(--text-dim)',
     }}>
-      <span>ML · Prob. Falla: <span style={{ color, fontWeight: 700 }}>{pct}%</span></span>
+      <span>ML · Prob: <span style={{ color, fontWeight: 700 }}>{pct}%</span></span>
       {reading.power_residual_kw != null && (
-        <span>Residual: <span style={{ color: Math.abs(reading.power_residual_kw) > 5 ? '#f59e0b' : 'var(--text)' }}>
-          {reading.power_residual_kw.toFixed(2)} kW
+        <span>Δ <span style={{ color: Math.abs(reading.power_residual_kw) > 5 ? '#f59e0b' : 'var(--text)' }}>
+          {reading.power_residual_kw.toFixed(1)} kW
         </span></span>
       )}
     </div>
@@ -239,21 +264,24 @@ function MlBadge({ reading }: { reading: LivePlantData | null }) {
 
 // ── Plant Card ────────────────────────────────────────────────────────────────
 
-function PlantCard({ meta, reading, history, loading }: {
+function PlantCard({ meta, reading, history, loading, onDashboard, onWeatherSelect, isWeatherActive }: {
   meta: typeof PLANT_META[0]
   reading: LivePlantData | null
   history: number[]
   loading: boolean
+  onDashboard: () => void
+  onWeatherSelect: () => void
+  isWeatherActive: boolean
 }) {
-  const isFault = reading?.label_is_fault === 1
-  const isNight = (reading?.irradiance_wm2 ?? 0) < 10
-  const ft = FAULT_INFO[reading?.fault_type ?? '']
+  const isFault   = reading?.label_is_fault === 1
+  const isNight   = (reading?.irradiance_wm2 ?? 0) < 10
+  const ft        = FAULT_INFO[reading?.fault_type ?? '']
   const soilingPct = Math.round((reading?.soiling ?? 0) * 100)
 
   const cardBorder = isFault ? '1px solid #f44336' : soilingPct > 15 ? '1px solid #ffd600' : '1px solid var(--border)'
   const cardShadow = isFault ? '0 0 20px rgba(244,67,54,0.15)' : 'none'
 
-  let badgeText = loading ? '···' : isNight ? 'NOCHE' : 'OPERANDO'
+  let badgeText = loading ? '···' : isNight ? 'NOCHE' : 'OK'
   let badgeBg = 'rgba(74,96,128,0.2)', badgeColor = 'var(--text-dim)', badgeBdr = 'var(--border)'
   if (isFault && ft) {
     badgeText = ft.label.toUpperCase()
@@ -266,68 +294,96 @@ function PlantCard({ meta, reading, history, loading }: {
   }
 
   const metrics = [
-    { label: 'P. AC',     value: reading ? reading.power_ac_kw!.toFixed(1)               : '–', unit: 'kW'   },
-    { label: 'Irrad.',    value: reading ? Math.round(reading.irradiance_wm2!).toString() : '–', unit: 'W/m²' },
-    { label: 'T. Módulo', value: reading ? reading.temp_module_c!.toFixed(1)              : '–', unit: '°C'   },
-    { label: 'E. Hoy',    value: reading ? reading.energy_daily_kwh!.toFixed(1)           : '–', unit: 'kWh'  },
+    { label: 'P. AC',  value: reading ? reading.power_ac_kw!.toFixed(1)               : '–', unit: 'kW'   },
+    { label: 'Irrad.', value: reading ? Math.round(reading.irradiance_wm2!).toString() : '–', unit: 'W/m²' },
+    { label: 'T. Mod', value: reading ? reading.temp_module_c!.toFixed(1)              : '–', unit: '°C'   },
+    { label: 'E. Hoy', value: reading ? reading.energy_daily_kwh!.toFixed(1)           : '–', unit: 'kWh'  },
   ]
 
   return (
     <div style={{
       background: 'var(--surface-2)', border: cardBorder, borderRadius: '8px',
-      overflow: 'hidden', boxShadow: cardShadow,
+      overflow: 'hidden', boxShadow: cardShadow, cursor: 'default',
       animation: isFault ? 'fault-pulse 2s infinite' : 'none',
+      display: 'flex', flexDirection: 'column',
     }}>
       {/* Header */}
       <div style={{
-        padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)',
+        padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)', gap: '6px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.9rem' }}>{meta.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+          <span
+            onClick={onWeatherSelect}
+            title="Ver clima de esta planta"
+            style={{
+              fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.82rem',
+              whiteSpace: 'nowrap', cursor: 'pointer',
+              color: isWeatherActive ? '#f59e0b' : 'inherit',
+              borderBottom: isWeatherActive ? '1px solid rgba(245,158,11,0.5)' : '1px solid transparent',
+              transition: 'color 0.15s, border-color 0.15s',
+            }}
+          >
+            P{meta.id} · {meta.name}
+          </span>
           <span style={{
-            fontSize: '0.60rem', background: 'var(--border)', padding: '2px 8px',
-            borderRadius: '3px', color: 'var(--text-dim)', letterSpacing: '0.08em',
+            fontSize: '0.55rem', background: 'var(--border)', padding: '2px 6px',
+            borderRadius: '3px', color: 'var(--text-dim)', letterSpacing: '0.06em', flexShrink: 0,
           }}>{meta.location}</span>
         </div>
-        <span style={{
-          fontSize: '0.62rem', padding: '3px 10px', borderRadius: '3px',
-          letterSpacing: '0.08em', fontWeight: 700, textTransform: 'uppercase',
-          background: badgeBg, color: badgeColor, border: `1px solid ${badgeBdr}`,
-        }}>{badgeText}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          <span style={{
+            fontSize: '0.58rem', padding: '2px 8px', borderRadius: '3px',
+            letterSpacing: '0.07em', fontWeight: 700, textTransform: 'uppercase',
+            background: badgeBg, color: badgeColor, border: `1px solid ${badgeBdr}`,
+          }}>{badgeText}</span>
+          {/* Botón Dashboard */}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDashboard() }}
+            title={`Ver dashboard de ${meta.name}`}
+            style={{
+              background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.3)',
+              color: '#58a6ff', borderRadius: '3px', padding: '2px 8px',
+              fontSize: '0.55rem', fontFamily: 'JetBrains Mono, monospace',
+              cursor: 'pointer', letterSpacing: '0.04em', whiteSpace: 'nowrap',
+            }}
+          >
+            📊
+          </button>
+        </div>
       </div>
 
       {/* Panel array + metrics */}
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
         <PanelArray reading={reading} meta={meta} />
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '5px' }}>
           {metrics.map(m => (
             <div key={m.label} style={{
               background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: '4px', padding: '8px 10px',
+              borderRadius: '4px', padding: '6px 8px',
             }}>
-              <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>{m.label}</div>
-              <div style={{ fontSize: '1.0rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1 }}>{m.value}</div>
-              <div style={{ fontSize: '0.58rem', color: 'var(--text-dim)', marginTop: '2px' }}>{m.unit}</div>
+              <div style={{ fontSize: '0.52rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '3px' }}>{m.label}</div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', lineHeight: 1 }}>{m.value}</div>
+              <div style={{ fontSize: '0.52rem', color: 'var(--text-dim)', marginTop: '2px' }}>{m.unit}</div>
             </div>
           ))}
         </div>
 
         {/* Sparkline */}
         <div style={{
-          height: '56px', background: 'var(--bg)', borderRadius: '4px',
+          height: '44px', background: 'var(--bg)', borderRadius: '4px',
           border: '1px solid var(--border)', overflow: 'hidden', position: 'relative',
         }}>
           <span style={{
-            position: 'absolute', top: '4px', left: '8px', fontSize: '0.58rem',
-            color: 'var(--text-dim)', zIndex: 2, letterSpacing: '0.08em', textTransform: 'uppercase',
-          }}>Potencia AC (kW)</span>
+            position: 'absolute', top: '3px', left: '6px', fontSize: '0.52rem',
+            color: 'var(--text-dim)', zIndex: 2, letterSpacing: '0.07em', textTransform: 'uppercase',
+          }}>kW</span>
           <Sparkline history={history} maxKw={meta.capacity_kw} />
         </div>
       </div>
 
-      {/* Inverters */}
+      {/* Inversores */}
       <InverterRow reading={reading} meta={meta} />
 
       {/* ML badge */}
@@ -335,26 +391,22 @@ function PlantCard({ meta, reading, history, loading }: {
 
       {/* Fault footer */}
       <div style={{
-        padding: '8px 12px', borderTop: '1px solid var(--border)', fontSize: '0.68rem',
-        minHeight: '34px', display: 'flex', alignItems: 'center', gap: '8px',
+        padding: '6px 10px', borderTop: '1px solid var(--border)', fontSize: '0.62rem',
+        minHeight: '28px', display: 'flex', alignItems: 'center', gap: '6px',
       }}>
         {isFault && ft ? (
           <>
-            <span style={{ fontSize: '14px', flexShrink: 0 }}>{ft.icon}</span>
-            <span style={{ color: ft.color, lineHeight: 1.4 }}>
-              {ft.label} · Severidad {reading?.fault_severity}/5
-            </span>
+            <span style={{ fontSize: '12px', flexShrink: 0 }}>{ft.icon}</span>
+            <span style={{ color: ft.color }}>{ft.label} · Sev {reading?.fault_severity}/5</span>
           </>
         ) : soilingPct > 5 ? (
           <>
-            <span style={{ fontSize: '14px' }}>🟫</span>
-            <span style={{ color: '#ffd600' }}>
-              Suciedad: {soilingPct}% · {soilingPct > 20 ? 'Requiere limpieza' : 'Nivel normal'}
-            </span>
+            <span style={{ fontSize: '12px' }}>🟫</span>
+            <span style={{ color: '#ffd600' }}>Suciedad {soilingPct}% {soilingPct > 20 ? '· Limpiar' : ''}</span>
           </>
         ) : (
           <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
-            {loading ? 'Conectando...' : isNight ? 'Sin generación nocturna.' : 'Sistema operando normalmente.'}
+            {loading ? 'Conectando...' : isNight ? 'Sin generación.' : 'Operando normalmente.'}
           </span>
         )}
       </div>
@@ -365,22 +417,25 @@ function PlantCard({ meta, reading, history, loading }: {
 // ── Summary Strip ─────────────────────────────────────────────────────────────
 
 function SummaryStrip({ data }: { data: Record<number, LivePlantData> }) {
-  const valid = Object.values(data)
+  const valid       = Object.values(data)
   const totalPow    = valid.reduce((s, r) => s + (r.power_ac_kw ?? 0), 0)
   const totalEnergy = valid.reduce((s, r) => s + (r.energy_daily_kwh ?? 0), 0)
   const faultCount  = valid.filter(r => r.label_is_fault).length
+  const totalCap    = PLANT_META.reduce((s, m) => s + m.capacity_kw, 0)
+  const capFactor   = totalCap > 0 ? (totalPow / totalCap * 100) : 0
 
   return (
-    <div style={{ display: 'flex', gap: '28px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+    <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
       {[
         { label: 'Potencia Total', value: totalPow.toFixed(1) + ' kW',       color: '#f59e0b' },
         { label: 'Energía Hoy',    value: totalEnergy.toFixed(1) + ' kWh',   color: undefined  },
-        { label: 'Fallas Activas', value: String(faultCount),                color: faultCount > 0 ? '#f85149' : '#3fb950' },
+        { label: 'Cap. Factor',    value: capFactor.toFixed(1) + '%',         color: capFactor > 60 ? '#3fb950' : '#f59e0b' },
+        { label: 'Fallas Activas', value: String(faultCount),                 color: faultCount > 0 ? '#f85149' : '#3fb950' },
         { label: 'Online',         value: `${valid.length} / ${PLANT_META.length}`, color: undefined },
       ].map(s => (
         <div key={s.label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '0.60rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.label}</span>
-          <span style={{ fontSize: '1.05rem', fontWeight: 700, fontFamily: 'Syne, sans-serif', color: s.color ?? 'var(--text)' }}>{s.value}</span>
+          <span style={{ fontSize: '0.58rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.label}</span>
+          <span style={{ fontSize: '1.0rem', fontWeight: 700, fontFamily: 'Syne, sans-serif', color: s.color ?? 'var(--text)' }}>{s.value}</span>
         </div>
       ))}
     </div>
@@ -424,9 +479,9 @@ function FaultLog({ entries, onClear }: { entries: LogEntry[]; onClear: () => vo
       <div ref={logRef} style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px 0' }}>
         {entries.length === 0 ? (
           <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.72rem', fontStyle: 'italic' }}>
-            Sin eventos registrados. Los cambios de estado aparecerán aquí.
+            Sin eventos. Los cambios de estado aparecerán aquí.
           </div>
-        ) : entries.slice(0, 60).map((e, i) => {
+        ) : entries.slice(0, 100).map((e, i) => {
           const ft = FAULT_INFO[e.type]
           return (
             <div key={i} style={{
@@ -437,9 +492,7 @@ function FaultLog({ entries, onClear }: { entries: LogEntry[]; onClear: () => vo
             }}>
               <span style={{ color: 'var(--text-dim)' }}>{e.ts}</span>
               <span style={{ color: '#00d4ff' }}>{e.plant}</span>
-              <span style={{ color: ft?.color ?? 'var(--text)' }}>
-                {ft?.icon ?? '⚠'} {e.msg}
-              </span>
+              <span style={{ color: ft?.color ?? 'var(--text)' }}>{ft?.icon ?? '⚠'} {e.msg}</span>
               <span style={{ textAlign: 'right', color: e.severity > 0 ? (SEV_COLORS[e.severity] ?? '#aaa') : '#3fb950' }}>
                 {e.severity > 0 ? `SEV ${e.severity}/5` : 'OK ✓'}
               </span>
@@ -453,13 +506,18 @@ function FaultLog({ entries, onClear }: { entries: LogEntry[]; onClear: () => vo
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function PlantGrid() {
+interface Props {
+  onSelectPlant: (plantId: number) => void
+}
+
+export default function PlantGrid({ onSelectPlant }: Props) {
   const { data: liveData, connected } = useLiveWeather()
-  const [histories, setHistories] = useState<Record<number, number[]>>({})
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
+  const [histories, setHistories]     = useState<Record<number, number[]>>({})
+  const [logEntries, setLogEntries]   = useState<LogEntry[]>([])
+  const [weatherPlant, setWeatherPlant] = useState<number>(1)
   const prevFaults = useRef<Record<number, string>>({})
 
-  // Acumular sparkline history desde datos en vivo
+  // Acumular sparkline history y log de fallas
   useEffect(() => {
     for (const r of Object.values(liveData)) {
       setHistories(prev => ({
@@ -467,7 +525,6 @@ export default function PlantGrid() {
         [r.plant_id]: [...(prev[r.plant_id] ?? []).slice(-47), r.power_ac_kw ?? 0],
       }))
 
-      // Log de fallas
       const meta = PLANT_META.find(m => m.id === r.plant_id)
       if (!meta) continue
       const prev = prevFaults.current[r.plant_id] ?? ''
@@ -498,19 +555,19 @@ export default function PlantGrid() {
   const loading = Object.keys(liveData).length === 0
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 32px' }}>
+    <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '20px 24px' }}>
 
       {/* Header */}
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-        marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '16px',
+        marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '14px',
         gap: '16px', flexWrap: 'wrap',
       }}>
         <div>
-          <h1 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '1.3rem', letterSpacing: '-0.02em', color: '#fff', margin: 0 }}>
+          <h1 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.02em', color: '#fff', margin: 0 }}>
             PLANTAS SOLARES
           </h1>
-          <p style={{ fontSize: '0.63rem', color: 'var(--text-dim)', marginTop: '4px', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <p style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginTop: '4px', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '6px' }}>
             MONITOREO EN TIEMPO REAL · SSE
             <span style={{
               width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block',
@@ -522,11 +579,11 @@ export default function PlantGrid() {
         <SummaryStrip data={liveData} />
       </div>
 
-      {/* Weather bar — datos en tiempo real del simulador */}
-      <WeatherBar data={liveData} />
+      {/* Weather bar por planta */}
+      <WeatherBar data={liveData} selectedId={weatherPlant} onSelect={setWeatherPlant} />
 
-      {/* Plant cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '20px' }}>
+      {/* Grid 4×2 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '14px' }}>
         {PLANT_META.map((meta) => (
           <PlantCard
             key={meta.id}
@@ -534,6 +591,9 @@ export default function PlantGrid() {
             reading={liveData[meta.id] ?? null}
             history={histories[meta.id] ?? []}
             loading={loading}
+            onDashboard={() => onSelectPlant(meta.id)}
+            onWeatherSelect={() => setWeatherPlant(meta.id)}
+            isWeatherActive={weatherPlant === meta.id}
           />
         ))}
       </div>
