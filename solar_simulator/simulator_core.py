@@ -108,7 +108,7 @@ def build_plant_profiles(n_plants: int, fault_level: int = 2) -> List[PlantProfi
             capacity_kw=200.0, panel_count=500, panel_wp=400, inverter_count=6,
             tilt_deg=10, base_temp_c=30.0, temp_amplitude_c=7.0,
             cloud_cover_mean=0.20, cloud_cover_sigma=0.10,
-            init_soiling=0.04, init_degradation_pct=0.5,
+            init_soiling=0.08, init_degradation_pct=0.5,
             fault_probs=scaled(1.2),
         ),
         # 2. Andina alta: nublado, frío, variabilidad alta
@@ -158,7 +158,7 @@ def build_plant_profiles(n_plants: int, fault_level: int = 2) -> List[PlantProfi
             capacity_kw=300.0, panel_count=750, panel_wp=400, inverter_count=8,
             tilt_deg=12, base_temp_c=32.0, temp_amplitude_c=8.0,
             cloud_cover_mean=0.10, cloud_cover_sigma=0.08,
-            init_soiling=0.05, init_degradation_pct=3.0,
+            init_soiling=0.15, init_degradation_pct=3.0,
             fault_probs=scaled(1.5),
         ),
         # 7. Sierra Nevada: microclima montaña costera
@@ -201,18 +201,24 @@ class SolarPhysicsEngine:
 
     def solar_position(self, dt: pd.Timestamp) -> Tuple[float, float]:
         lat_rad = math.radians(self.p.latitude)
-        lon, tz = self.p.longitude, self.p.timezone_offset_h
+        lon = self.p.longitude
         doy = dt.timetuple().tm_yday
         B = 2 * math.pi * (doy - 1) / 365
         EoT = 229.18 * (0.000075 + 0.001868 * math.cos(B) - 0.032077 * math.sin(B)
                         - 0.014615 * math.cos(2 * B) - 0.04089 * math.sin(2 * B))
         decl = math.radians(23.45 * math.sin(math.radians(360 / 365 * (doy - 81))))
-        hour = dt.hour + dt.minute / 60.0
-        solar_time = hour + (lon - tz * 15) / 15 + EoT / 60
+
+        # dt hereda generador naive pero sirve como UTC virtual para el backend.
+        # Tiempo Solar Local (LST) a partir de UTC pura:
+        # LST = UTC + (Longitud / 15) + Ecuación del Tiempo
+        hour_utc = dt.hour + dt.minute / 60.0 + dt.second / 3600.0
+        solar_time = hour_utc + (lon / 15.0) + (EoT / 60.0)
+
         hour_angle = math.radians(15 * (solar_time - 12))
         sin_elev = (math.sin(lat_rad) * math.sin(decl) +
                     math.cos(lat_rad) * math.cos(decl) * math.cos(hour_angle))
         elevation = math.degrees(math.asin(max(-1.0, min(1.0, sin_elev))))
+
         if elevation > 0.1:
             cos_az = ((math.sin(decl) - math.sin(lat_rad) * sin_elev) /
                       (math.cos(lat_rad) * math.cos(math.asin(sin_elev)) + 1e-9))
@@ -221,6 +227,7 @@ class SolarPhysicsEngine:
                 azimuth = 360 - azimuth
         else:
             azimuth = 180.0
+
         return max(0.0, elevation), azimuth
 
     def clear_sky_ghi(self, elevation_deg: float) -> float:
@@ -345,52 +352,10 @@ class FaultManager:
         FaultType.GRID_DISCONNECT:  (1, 8),
         FaultType.MPPT_FAILURE:     (8, 40),
         FaultType.PARTIAL_SHADING:  (2, 12),
-    }
-
-    # Tasas de acumulación de suciedad (por paso de 15 min de día)
-    # Tasas de acumulación de suciedad — calibradas para producir
-    # ~10-20% días sobre umbral en plantas áridas, <5% en húmedas
-    SOILING_RATE: dict = {
-        1: 0.00030,  # Caribe — seco con brisa marina
-        2: 0.00008,  # Andina — lluvia muy frecuente
-        3: 0.00010,  # Paisa — lluvia moderada
-        4: 0.00015,  # Valle — seco templado
-        5: 0.00010,  # Llanos — lluvias fuertes periódicas
-        6: 0.00030,  # Guajira — polvo saháreo
-        7: 0.00012,  # Sierra Nevada
-        8: 0.00008,  # Boyacá — lluvia frecuente
-    }
-    DUST_RATE: dict = {
-        1: 0.009,    # Caribe
-        2: 0.002,    # Andina
-        3: 0.003,    # Paisa
-        4: 0.005,    # Valle
-        5: 0.004,    # Llanos
-        6: 0.008,    # Guajira — polvo saháreo intenso
-        7: 0.004,    # Sierra Nevada
-        8: 0.002,    # Boyacá
-    }
-    DUST_PROB: dict = {
-        1: 0.003,    # Caribe
-        2: 0.001,    # Andina
-        3: 0.002,    # Paisa
-        4: 0.003,    # Valle
-        5: 0.002,    # Llanos
-        6: 0.003,    # Guajira
-        7: 0.002,    # Sierra Nevada
-        8: 0.001,    # Boyacá
-    }
-    # Limpieza programada cada N días (en pasos: 1 día = 96 pasos @ 15min)
-    # None = depende solo de lluvia natural
-    CLEANING_INTERVAL_DAYS: dict = {
-        1: 21,   # Caribe — cada 3 semanas
-        2: None,
-        3: None,
-        4: 28,   # Valle — cada 4 semanas
-        5: None,
-        6: 21,   # Guajira — cada 3 semanas
-        7: 28,
-        8: None,
+        # PANEL_SOILING y PID_EFFECT no se crean via _create pero se añaden
+        # como defensa ante futuros usos — evita KeyError
+        FaultType.PANEL_SOILING:    (0, 1),   # no usado por _create, es acumulativo
+        FaultType.PID_EFFECT:       (48, 240),
     }
 
     def __init__(self, profile: PlantProfile, seed: Optional[int] = None):
@@ -399,48 +364,41 @@ class FaultManager:
         self.active_faults: List[FaultEvent] = []
         self.soiling = profile.init_soiling
         self.degradation_pct = profile.init_degradation_pct
-        self._step_count = 0  # para limpieza periódica programada
-        self._scheduled_cleaning_step = -1 # limpieza reactiva al umbral
+        self._step_count = 0
+        self._scheduled_cleaning_step = -1  # -1 = sin limpieza pendiente
 
     def step(self, dt: pd.Timestamp, cloud_cover: float,
              rain_active: bool, dust_event: bool, rain_cleaning: float):
         hour = dt.hour
-        pid  = self.p.plant_id
         self._step_count += 1
 
-        # Suciedad acumulativa — tasa y prob de polvo diferenciadas por planta
-        base_rate = self.SOILING_RATE.get(pid, 0.0002)
-        dust_rate = self.DUST_RATE.get(pid, 0.004)
-        dust_prob = self.DUST_PROB.get(pid, 0.002)
-        # Evento de polvo local (puede ocurrir aunque WeatherSimulator no lo genere)
-        local_dust = dust_event or bool(self.rng.random() < dust_prob)
+        # ── Suciedad acumulativa ──────────────────────────────────
         if 8 <= hour <= 17 and not rain_active:
-            self.soiling = min(1.0, self.soiling + (dust_rate if local_dust else base_rate))
+            self.soiling = min(1.0, self.soiling + (0.006 if dust_event else 0.0002))
 
-        # Limpieza por lluvia — factor pequeño por paso (lluvia dura varias horas)
+        # Limpieza natural por lluvia (pequeña por paso)
         if rain_active:
-            self.soiling = max(0.0, self.soiling - rain_cleaning * 0.015)
+            self.soiling = max(0.0, self.soiling - rain_cleaning * 0.12)
 
-        # Planificar limpieza automática si estamos sucios y no hay ninguna planificada
+        # ── Limpieza programada (mantenimiento humano) ────────────
+        # 1. REACTIVA: panel_soiling detectado → limpiar en 7–15 días
         if self.soiling > 0.15 and self._scheduled_cleaning_step == -1:
-            # 7 a 15 días (= 96 pasos/día)
-            days_to_clean = int(self.rng.integers(7, 16))
-            self._scheduled_cleaning_step = self._step_count + (days_to_clean * 96)
+            days = int(self.rng.integers(7, 16))   # 7–15 días
+            self._scheduled_cleaning_step = self._step_count + days * 96
 
-        # Ejecutar limpieza si llegó la hora programada
-        if self._scheduled_cleaning_step != -1 and self._step_count >= self._scheduled_cleaning_step:
-            self.soiling = max(0.01, self.soiling * 0.15) # Limpieza humana intensa
+        # 2. PREVENTIVA: limpieza mensual fija (cada 30 días = 2880 pasos)
+        MONTHLY = 30 * 96
+        if self._step_count % MONTHLY == 0:
+            self.soiling = max(0.01, self.soiling * 0.15)
+            self._scheduled_cleaning_step = -1  # cancelar reactiva si coincide
+
+        # Ejecutar la reactiva si llegó su momento
+        elif self._scheduled_cleaning_step != -1 and self._step_count >= self._scheduled_cleaning_step:
+            self.soiling = max(0.01, self.soiling * 0.15)
             self._scheduled_cleaning_step = -1
 
-        # Limpieza programada estática (mantenimiento regular) — cada N días
-        interval_days = self.CLEANING_INTERVAL_DAYS.get(pid)
-        if interval_days:
-            interval_steps = interval_days * 96  # 96 pasos por día
-            if self._step_count % interval_steps == 0:
-                self.soiling = max(0.01, self.soiling * 0.15)
-                self._scheduled_cleaning_step = -1 # Resetea la programada si justo coincide
+        # ── Degradación PID crónica ───────────────────────────────
 
-        # Degradación PID crónica
         self.degradation_pct = min(15.0, self.degradation_pct + 0.000015)
 
         # Decrementar activas
@@ -539,6 +497,7 @@ class PlantSimulator:
         self.physics = SolarPhysicsEngine(profile)
         self.weather = WeatherSimulator(profile, seed=seed)
         self.faults = FaultManager(profile, seed=(seed or 0) + 1)
+        self.rng = np.random.default_rng((seed or 0) + 2)
         self.current_ts = start_ts
         self._energy_daily = 0.0
         self._energy_total = 0.0
@@ -553,28 +512,24 @@ class PlantSimulator:
         # Posición solar + irradiancia
         elev, azimuth = self.physics.solar_position(dt)
         ghi = self.physics.clear_sky_ghi(elev)
-        ghi_cloudy = max(0.0, ghi * (1.0 - cloud * 0.85) + float(np.random.normal(0, 5)))
+        ghi_cloudy = max(0.0, ghi * (1.0 - cloud * 0.85) + float(self.rng.normal(0, 5)))
         irr_poa = self.physics.poa_irradiance(ghi_cloudy, elev, azimuth)
 
         # Temperatura módulo
         t_mod = self.physics.module_temperature(irr_poa, t_amb, wind)
 
-        # Potencia ideal (sin fallas de evento ni acumulación excesiva de suciedad)
-        p_dc_ideal = self.physics.dc_power_kw(irr_poa, t_mod,
-                                              self.profile.init_soiling,
-                                              self.faults.degradation_pct)
-        # expected_power: potencia normal ideal
-        expected_power_ac_kw = round(self.physics.ac_power_kw(p_dc_ideal), 4)
-
-        # Potencia base real (con suciedad actual)
+        # Potencias base (sin fallas de evento → expected)
         p_dc_base = self.physics.dc_power_kw(irr_poa, t_mod,
                                               self.faults.soiling,
                                               self.faults.degradation_pct)
         p_ac_base = self.physics.ac_power_kw(p_dc_base)
 
-        # Ruido realista a la potencia base real
-        p_ac_base = max(0.0, p_ac_base + float(np.random.normal(0, max(0.02, p_ac_base * 0.005))))
-        p_dc_base = max(p_ac_base, p_dc_base + float(np.random.normal(0, max(0.01, p_dc_base * 0.003))))
+        # Ruido realista
+        p_ac_base = max(0.0, p_ac_base + float(self.rng.normal(0, max(0.02, p_ac_base * 0.005))))
+        p_dc_base = max(p_ac_base, p_dc_base + float(self.rng.normal(0, max(0.01, p_dc_base * 0.003))))
+
+        # expected_power: potencia normal sin fallas de evento
+        expected_power_ac_kw = round(p_ac_base, 4)
 
         # Fallas
         self.faults.step(dt, cloud, rain, dust, rain_clean)

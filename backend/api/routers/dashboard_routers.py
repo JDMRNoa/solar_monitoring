@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from backend.db.session import get_db
-from backend.services.dashboard_service import get_summary, get_alerts, get_timeseries, get_fault_packages
+from backend.services.dashboard_service import get_summary, get_alerts, get_timeseries, get_fault_packages, get_fault_events
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -34,6 +34,7 @@ def timeseries_endpoint(
 ):
     return get_timeseries(db, plant_id=plant_id, hours=hours, limit=limit)
 
+
 @router.get("/fault-packages")
 def fault_packages_endpoint(
     plant_id: int = Query(...),
@@ -43,7 +44,25 @@ def fault_packages_endpoint(
     db: Session = Depends(get_db),
 ):
     """
-    Agrupa fallas consecutivas en paquetes de evento.
-    gap_minutes: máximo intervalo entre lecturas para considerarlas la misma falla.
+    Agrupa lecturas con falla detectada por ML en paquetes de evento.
+    gap_minutes: máximo gap entre lecturas para considerarlas el mismo evento.
     """
-    return {"data": get_fault_packages(db, plant_id=plant_id, hours=hours, min_proba=min_proba, gap_minutes=gap_minutes)}
+    return get_fault_packages(
+        db, plant_id=plant_id, hours=hours,
+        min_proba=min_proba, gap_minutes=gap_minutes,
+    )
+
+
+@router.get("/events")
+def events_endpoint(
+    plant_id: int = Query(...),
+    hours: int = Query(None),
+    min_proba: float = Query(0.5),
+    limit: int = Query(200),
+    db: Session = Depends(get_db),
+):
+    """
+    Log de eventos de falla detectados por el ML (transiciones 0→1 y 1→0).
+    Fuente: ai_predictions — nunca ground truth del simulador.
+    """
+    return get_fault_events(db, plant_id=plant_id, hours=hours, min_proba=min_proba, limit=limit)

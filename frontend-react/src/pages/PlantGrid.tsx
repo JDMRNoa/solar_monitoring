@@ -1,5 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { useLiveWeather, type LivePlantData } from '../hooks/useLiveWeather'
+import { fetchFaultEvents } from '../lib/api'
+import type { FaultEvent } from '../types'
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -23,16 +25,6 @@ const FAULT_INFO: Record<string, { label: string; icon: string; color: string; b
   partial_shading: { label: 'Partial Shading',  icon: '🌥', color: '#607d8b', bg: 'rgba(96,125,139,0.12)' },
   panel_soiling:   { label: 'Panel Soiling',    icon: '🟫', color: '#ffd600', bg: 'rgba(255,214,0,0.12)'  },
   pid_effect:      { label: 'PID Effect',       icon: '📶', color: '#ff6f00', bg: 'rgba(255,111,0,0.12)'  },
-}
-
-const SEV_COLORS: Record<number, string> = { 1: '#aaa', 2: '#ffd600', 3: '#ff9800', 4: '#ff5722', 5: '#f44336' }
-
-interface LogEntry {
-  ts: string
-  plant: string
-  msg: string
-  severity: number
-  type: string
 }
 
 // ── Sparkline ─────────────────────────────────────────────────────────────────
@@ -70,13 +62,14 @@ function PanelArray({ reading, meta }: { reading: LivePlantData | null; meta: ty
   const pAc = reading?.power_ac_kw ?? 0
   const irr = reading?.irradiance_wm2 ?? 0
   const isNight = irr < 10
-  const ft = reading?.fault_type ?? ''
+  // Efectos visuales del array basados en tipo ML inferido
+  const ft = (reading?.fault_pred === 1 ? (reading as any).fault_type_pred : null) ?? ''
   const loadRatio = Math.min(1, pAc / meta.capacity_kw)
   const soiling = reading?.soiling ?? 0
 
   const getCellStyle = (i: number): React.CSSProperties => {
     if (!reading || isNight) return { background: '#0d1117' }
-    if (ft === 'grid_disconnect' && (reading.fault_severity ?? 0) > 3)
+    if (ft === 'grid_disconnect' && (reading.fault_proba ?? 0) > 0.7)
       return { background: '#3a1a1a', boxShadow: '0 0 3px rgba(255,68,68,0.4)' }
     if (ft === 'partial_shading')
       return i < 12
@@ -123,7 +116,8 @@ function PanelArray({ reading, meta }: { reading: LivePlantData | null; meta: ty
 
 function InverterRow({ reading, meta }: { reading: LivePlantData | null; meta: typeof PLANT_META[0] }) {
   const pAc = reading?.power_ac_kw ?? 0
-  const ft = reading?.fault_type ?? ''
+  // Usar tipo inferido por ML, no el fault_type del simulador
+  const ft = (reading?.fault_pred === 1 ? (reading as any).fault_type_pred : null) ?? ''
   const loadPerInv = meta.capacity_kw / meta.inverter_count
   // Máximo 6 inversores visibles para no romper el layout 4-col
   const visibleCount = Math.min(meta.inverter_count, 6)
@@ -137,7 +131,7 @@ function InverterRow({ reading, meta }: { reading: LivePlantData | null; meta: t
           invPow *= 0.4; border = '#ffd600'; bg = 'rgba(255,214,0,0.08)'; color = '#ffd600'
         } else if (ft === 'grid_disconnect') {
           border = '#f44336'; bg = 'rgba(244,67,54,0.08)'; color = '#f44336'; invPow = 0
-        } else if (reading?.label_is_fault && (reading.fault_severity ?? 0) > 3 && i === 0) {
+        } else if ((reading?.fault_proba ?? 0) > 0.8 && i === 0) {
           border = '#f44336'; bg = 'rgba(244,67,54,0.08)'; color = '#f44336'
         }
         const pct = loadPerInv > 0 ? Math.round((invPow / loadPerInv) * 100) : 0
@@ -273,20 +267,27 @@ function PlantCard({ meta, reading, history, loading, onDashboard, onWeatherSele
   onWeatherSelect: () => void
   isWeatherActive: boolean
 }) {
-  const isFault   = reading?.label_is_fault === 1
-  const isNight   = (reading?.irradiance_wm2 ?? 0) < 10
-  const ft        = FAULT_INFO[reading?.fault_type ?? '']
+  // Estado visual basado en ML (fault_proba) — no en ground truth del simulador
+  const mlProba    = reading?.fault_proba ?? 0
+  const mlFault    = mlProba > 0.6
+  const mlType     = reading?.fault_pred === 1 ? (reading as any).fault_type_pred ?? null : null
+  const isNight    = (reading?.irradiance_wm2 ?? 0) < 10
+  const ft         = FAULT_INFO[mlType ?? '']
   const soilingPct = Math.round((reading?.soiling ?? 0) * 100)
 
-  const cardBorder = isFault ? '1px solid #f44336' : soilingPct > 15 ? '1px solid #ffd600' : '1px solid var(--border)'
-  const cardShadow = isFault ? '0 0 20px rgba(244,67,54,0.15)' : 'none'
+  const cardBorder = mlFault ? '1px solid #f44336' : soilingPct > 20 ? '1px solid #ffd600' : '1px solid var(--border)'
+  const cardShadow = mlFault ? '0 0 20px rgba(244,67,54,0.15)' : 'none'
 
   let badgeText = loading ? '···' : isNight ? 'NOCHE' : 'OK'
   let badgeBg = 'rgba(74,96,128,0.2)', badgeColor = 'var(--text-dim)', badgeBdr = 'var(--border)'
-  if (isFault && ft) {
+  if (mlFault && ft) {
     badgeText = ft.label.toUpperCase()
     badgeBg = ft.bg; badgeColor = ft.color; badgeBdr = ft.color + '66'
-  } else if (soilingPct > 15) {
+  } else if (mlFault) {
+    // ML detecta falla pero no hay tipo clasificado aún
+    badgeText = `FALLA ${Math.round(mlProba * 100)}%`
+    badgeBg = 'rgba(244,67,54,0.15)'; badgeColor = '#f44336'; badgeBdr = 'rgba(244,67,54,0.3)'
+  } else if (soilingPct > 20) {
     badgeText = `SUCIO ${soilingPct}%`
     badgeBg = 'rgba(255,214,0,0.15)'; badgeColor = '#ffd600'; badgeBdr = 'rgba(255,214,0,0.3)'
   } else if (!isNight && reading) {
@@ -304,7 +305,7 @@ function PlantCard({ meta, reading, history, loading, onDashboard, onWeatherSele
     <div style={{
       background: 'var(--surface-2)', border: cardBorder, borderRadius: '8px',
       overflow: 'hidden', boxShadow: cardShadow, cursor: 'default',
-      animation: isFault ? 'fault-pulse 2s infinite' : 'none',
+      animation: mlFault ? 'fault-pulse 2s infinite' : 'none',
       display: 'flex', flexDirection: 'column',
     }}>
       {/* Header */}
@@ -389,20 +390,27 @@ function PlantCard({ meta, reading, history, loading, onDashboard, onWeatherSele
       {/* ML badge */}
       <MlBadge reading={reading} />
 
-      {/* Fault footer */}
+      {/* Fault footer — info del ML, no del simulador */}
       <div style={{
         padding: '6px 10px', borderTop: '1px solid var(--border)', fontSize: '0.62rem',
         minHeight: '28px', display: 'flex', alignItems: 'center', gap: '6px',
       }}>
-        {isFault && ft ? (
+        {mlFault && ft ? (
           <>
             <span style={{ fontSize: '12px', flexShrink: 0 }}>{ft.icon}</span>
-            <span style={{ color: ft.color }}>{ft.label} · Sev {reading?.fault_severity}/5</span>
+            <span style={{ color: ft.color }}>{ft.label}</span>
+            <span style={{ color: 'var(--text-dim)', marginLeft: '4px' }}>· ML {Math.round(mlProba * 100)}%</span>
+          </>
+        ) : mlFault ? (
+          <>
+            <span style={{ fontSize: '12px' }}>⚠</span>
+            <span style={{ color: '#f44336' }}>Anomalía detectada</span>
+            <span style={{ color: 'var(--text-dim)', marginLeft: '4px' }}>· {Math.round(mlProba * 100)}% prob.</span>
           </>
         ) : soilingPct > 5 ? (
           <>
             <span style={{ fontSize: '12px' }}>🟫</span>
-            <span style={{ color: '#ffd600' }}>Suciedad {soilingPct}% {soilingPct > 20 ? '· Limpiar' : ''}</span>
+            <span style={{ color: '#ffd600' }}>Suciedad estimada {soilingPct}%{soilingPct > 20 ? ' · Limpiar' : ''}</span>
           </>
         ) : (
           <span style={{ color: 'var(--text-dim)', fontStyle: 'italic' }}>
@@ -420,7 +428,7 @@ function SummaryStrip({ data }: { data: Record<number, LivePlantData> }) {
   const valid       = Object.values(data)
   const totalPow    = valid.reduce((s, r) => s + (r.power_ac_kw ?? 0), 0)
   const totalEnergy = valid.reduce((s, r) => s + (r.energy_daily_kwh ?? 0), 0)
-  const faultCount  = valid.filter(r => r.label_is_fault).length
+  const faultCount  = valid.filter(r => (r.fault_proba ?? 0) > 0.6).length
   const totalCap    = PLANT_META.reduce((s, m) => s + m.capacity_kw, 0)
   const capFactor   = totalCap > 0 ? (totalPow / totalCap * 100) : 0
 
@@ -442,60 +450,115 @@ function SummaryStrip({ data }: { data: Record<number, LivePlantData> }) {
   )
 }
 
-// ── Fault Log ─────────────────────────────────────────────────────────────────
+// ── Fault Log — lee desde DB via /dashboard/events ───────────────────────────
 
-function FaultLog({ entries, onClear }: { entries: LogEntry[]; onClear: () => void }) {
+const HOURS_OPTIONS = [
+  { label: '2h',    value: 2   },
+  { label: '24h',   value: 24  },
+  { label: '7d',    value: 168 },
+  { label: 'Todo',  value: null },
+]
+
+function FaultLog({ selectedPlant }: { selectedPlant: number }) {
+  const [events, setEvents]     = useState<FaultEvent[]>([])
+  const [loading, setLoading]   = useState(false)
+  const [hours, setHours]       = useState<number | null>(24)
   const logRef = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (logRef.current) logRef.current.scrollTop = 0 }, [entries.length])
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await fetchFaultEvents(selectedPlant, hours)
+      setEvents(data)
+    } catch {
+      setEvents([])
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedPlant, hours])
+
+  useEffect(() => { load() }, [load])
+  // Auto-refresh cada 30s
+  useEffect(() => {
+    const id = setInterval(load, 30_000)
+    return () => clearInterval(id)
+  }, [load])
 
   return (
     <div style={{
       background: 'var(--surface-2)', border: '1px solid var(--border)',
       borderRadius: '8px', overflow: 'hidden', marginTop: '20px',
     }}>
+      {/* Header */}
       <div style={{
         padding: '10px 16px', borderBottom: '1px solid var(--border)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: 'rgba(255,255,255,0.02)',
+        background: 'rgba(255,255,255,0.02)', flexWrap: 'wrap', gap: '8px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.85rem' }}>
-            📋 Log de Fallas y Eventos
+            📋 Log de Eventos ML
           </span>
-          {entries.length > 0 && (
+          {events.length > 0 && (
             <span style={{
               fontSize: '0.60rem', background: 'rgba(244,67,54,0.15)', color: '#f44336',
               border: '1px solid rgba(244,67,54,0.3)', padding: '2px 8px', borderRadius: '10px',
-            }}>{entries.length}</span>
+            }}>{events.length}</span>
           )}
+          <span style={{ fontSize: '0.58rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+            DB · inferencia ML
+          </span>
         </div>
-        <button onClick={onClear} style={{
-          background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)',
-          borderRadius: '4px', padding: '4px 12px', fontSize: '0.65rem',
-          fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer', letterSpacing: '0.05em',
-        }}>Limpiar</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          {/* Selector de período */}
+          {HOURS_OPTIONS.map(opt => (
+            <button
+              key={String(opt.value)}
+              onClick={() => setHours(opt.value)}
+              style={{
+                background: hours === opt.value ? 'rgba(88,166,255,0.15)' : 'transparent',
+                border: `1px solid ${hours === opt.value ? 'rgba(88,166,255,0.5)' : 'var(--border)'}`,
+                color: hours === opt.value ? '#58a6ff' : 'var(--text-dim)',
+                borderRadius: '4px', padding: '2px 8px', fontSize: '0.6rem',
+                fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer',
+              }}
+            >{opt.label}</button>
+          ))}
+          <button onClick={load} style={{
+            background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)',
+            borderRadius: '4px', padding: '2px 8px', fontSize: '0.6rem',
+            fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer',
+          }}>↻</button>
+        </div>
       </div>
 
-      <div ref={logRef} style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px 0' }}>
-        {entries.length === 0 ? (
-          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.72rem', fontStyle: 'italic' }}>
-            Sin eventos. Los cambios de estado aparecerán aquí.
+      {/* Body */}
+      <div ref={logRef} style={{ maxHeight: '200px', overflowY: 'auto', padding: '4px 0' }}>
+        {loading ? (
+          <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.68rem' }}>
+            Cargando...
           </div>
-        ) : entries.slice(0, 100).map((e, i) => {
-          const ft = FAULT_INFO[e.type]
+        ) : events.length === 0 ? (
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+            Sin eventos de falla en el período seleccionado.
+          </div>
+        ) : events.map((e, i) => {
+          const ft       = FAULT_INFO[e.fault_type ?? '']
+          const isStart  = e.event_type === 'fault_start'
+          const rowColor = isStart ? (ft?.color ?? '#f44336') : '#3fb950'
+          const icon     = isStart ? (ft?.icon ?? '⚠') : '✓'
+          const proba    = e.fault_proba != null ? `${Math.round(e.fault_proba * 100)}%` : ''
+          const ts       = new Date(e.ts).toLocaleString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
           return (
             <div key={i} style={{
-              display: 'grid', gridTemplateColumns: '150px 90px 1fr 76px',
-              gap: '8px', padding: '5px 16px', fontSize: '0.65rem',
+              display: 'grid', gridTemplateColumns: '130px 1fr auto',
+              gap: '10px', padding: '5px 16px', fontSize: '0.65rem',
               borderBottom: '1px solid rgba(30,45,61,0.5)',
-              animation: i === 0 ? 'slide-in 0.3s ease' : 'none',
             }}>
-              <span style={{ color: 'var(--text-dim)' }}>{e.ts}</span>
-              <span style={{ color: '#00d4ff' }}>{e.plant}</span>
-              <span style={{ color: ft?.color ?? 'var(--text)' }}>{ft?.icon ?? '⚠'} {e.msg}</span>
-              <span style={{ textAlign: 'right', color: e.severity > 0 ? (SEV_COLORS[e.severity] ?? '#aaa') : '#3fb950' }}>
-                {e.severity > 0 ? `SEV ${e.severity}/5` : 'OK ✓'}
-              </span>
+              <span style={{ color: 'var(--text-dim)' }}>{ts}</span>
+              <span style={{ color: rowColor }}>{icon} {e.msg}</span>
+              <span style={{ color: 'var(--text-dim)', textAlign: 'right', fontSize: '0.6rem' }}>{proba}</span>
             </div>
           )
         })}
@@ -512,43 +575,16 @@ interface Props {
 
 export default function PlantGrid({ onSelectPlant }: Props) {
   const { data: liveData, connected } = useLiveWeather()
-  const [histories, setHistories]     = useState<Record<number, number[]>>({})
-  const [logEntries, setLogEntries]   = useState<LogEntry[]>([])
+  const [histories, setHistories]   = useState<Record<number, number[]>>({})
   const [weatherPlant, setWeatherPlant] = useState<number>(1)
-  const prevFaults = useRef<Record<number, string>>({})
 
-  // Acumular sparkline history y log de fallas
+  // Acumular sparkline history
   useEffect(() => {
     for (const r of Object.values(liveData)) {
       setHistories(prev => ({
         ...prev,
         [r.plant_id]: [...(prev[r.plant_id] ?? []).slice(-47), r.power_ac_kw ?? 0],
       }))
-
-      const meta = PLANT_META.find(m => m.id === r.plant_id)
-      if (!meta) continue
-      const prev = prevFaults.current[r.plant_id] ?? ''
-      const cur  = r.label_is_fault ? (r.fault_type ?? '') : ''
-      if (!prev && cur) {
-        const ft = FAULT_INFO[cur]
-        setLogEntries(e => [{
-          ts: new Date(r.ts ?? '').toLocaleString('es-CO'),
-          plant: meta.name,
-          msg: `${ft?.label ?? cur} – INICIO`,
-          severity: r.fault_severity ?? 1,
-          type: cur,
-        }, ...e].slice(0, 100))
-      } else if (prev && !cur) {
-        const ft = FAULT_INFO[prev]
-        setLogEntries(e => [{
-          ts: new Date(r.ts ?? '').toLocaleString('es-CO'),
-          plant: meta.name,
-          msg: `${ft?.label ?? prev} – RESUELTO`,
-          severity: 0,
-          type: prev,
-        }, ...e].slice(0, 100))
-      }
-      prevFaults.current[r.plant_id] = cur
     }
   }, [liveData])
 
@@ -598,8 +634,8 @@ export default function PlantGrid({ onSelectPlant }: Props) {
         ))}
       </div>
 
-      {/* Fault log */}
-      <FaultLog entries={logEntries} onClear={() => setLogEntries([])} />
+      {/* Fault log — lee desde DB, persiste entre navegaciones */}
+      <FaultLog selectedPlant={weatherPlant} />
 
       <style>{`
         @keyframes fault-pulse {

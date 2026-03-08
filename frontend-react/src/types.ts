@@ -13,6 +13,8 @@ export interface TimeseriesItem {
   ts:                    string
   plant_id?:             number | null
   power_ac_kw?:          number | null
+  irradiance_wm2?:       number | null
+  temp_module_c?:        number | null
   expected_power_ac_kw?: number | null
   power_residual_kw?:    number | null
   fault_proba?:          number | null
@@ -77,3 +79,17 @@ export interface DashboardParams {
 // ── Per-plant threshold config ────────────────────────────────────────────────
 // Mapa de plant_id → umbral mínimo de fault_proba
 export type PlantThresholds = Record<number, number>
+
+// ── Fault Events (/dashboard/events) ─────────────────────────────────────────
+// Transiciones de estado detectadas por ML — no ground truth del simulador
+export interface FaultEvent {
+  ts:               string
+  plant_id:         number
+  event_type:       'fault_start' | 'fault_end'
+  fault_type:       string | null
+  fault_label:      string
+  fault_proba:      number | null
+  fault_type_proba: number | null
+  power_residual_kw: number | null
+  msg:              string
+}
