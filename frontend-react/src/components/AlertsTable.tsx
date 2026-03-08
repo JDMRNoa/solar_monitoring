@@ -102,7 +102,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
   const [error, setError]   = useState<string | null>(null)
 
   useEffect(() => {
-    fetchExplain(pkg.representative_id, pkg.reading_count, pkg.duration_minutes)
+    fetchExplain(pkg.representative_id)
       .then(r => { setResult(r); setState('success') })
       .catch(e => { setError(e.message); setState('error') })
   }, [pkg.representative_id])
