@@ -117,3 +117,58 @@ def _close_package(pkg: dict) -> dict:
     result   = {k: v for k, v in pkg.items() if not k.startswith("_")}
     result["duration_minutes"] = duration
     return result
+
+
+# ── Etiquetas legibles ────────────────────────────────────────────────────────
+
+_FAULT_LABELS = {
+    "inverter_derate": "Inverter Derate",
+    "string_fault":    "String Fault",
+    "grid_disconnect": "Grid Disconnect",
+    "mppt_failure":    "MPPT Failure",
+    "partial_shading": "Partial Shading",
+    "panel_soiling":   "Panel Soiling",
+    "pid_effect":      "PID Effect",
+    "sensor_flatline": "Sensor Flatline",
+}
+
+
+def get_fault_events(
+    db: Session,
+    plant_id: int,
+    hours: int = None,
+    min_proba: float = 0.5,
+    limit: int = 200,
+) -> list[dict]:
+    """
+    Transiciones de estado detectadas por el ML para el log de eventos.
+    Cada entrada es un fault_start o fault_end, nunca ground truth.
+    """
+    rows = dashboard_repo.fetch_fault_events_by_plant(
+        db, plant_id=plant_id, hours=hours, min_proba=min_proba, limit=limit
+    )
+
+    events = []
+    for row in rows:
+        is_start      = row["fault_pred"] == 1
+        fault_type    = row.get("fault_type_pred")
+        fault_label   = _FAULT_LABELS.get(fault_type, "Anomalía") if fault_type else "Anomalía"
+        proba_pct     = round((row.get("fault_proba") or 0) * 100)
+
+        events.append({
+            "ts":               row["ts"].isoformat() if hasattr(row["ts"], "isoformat") else row["ts"],
+            "plant_id":         row["plant_id"],
+            "event_type":       "fault_start" if is_start else "fault_end",
+            "fault_type":       fault_type,
+            "fault_label":      fault_label,
+            "fault_proba":      row.get("fault_proba"),
+            "fault_type_proba": row.get("fault_type_proba"),
+            "power_residual_kw": row.get("power_residual_kw"),
+            "msg": (
+                f"{fault_label} detectada (ML {proba_pct}%)"
+                if is_start
+                else f"{fault_label} resuelta"
+            ),
+        })
+
+    return events

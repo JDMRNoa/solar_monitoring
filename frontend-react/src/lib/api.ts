@@ -28,24 +28,32 @@ export async function fetchAlerts(plant_id: number, hours: number, min_proba: nu
   return (res as { data?: AlertItem[] }).data ?? []
 }
 
-export function fetchExplain(
-  prediction_id: number,
-  reading_count = 1,
-  duration_minutes = 0,
-): Promise<ExplainResult> {
-  return get<ExplainResult>(
-    `/explain/${prediction_id}?reading_count=${reading_count}&duration_minutes=${duration_minutes}`
-  )
+export function fetchExplain(prediction_id: number): Promise<ExplainResult> {
+  return get<ExplainResult>(`/explain/${prediction_id}`)
 }
+
 export async function fetchFaultPackages(
   plant_id: number,
-  hours: number,
+  hours: number | null,
   min_proba = 0.3,
-  gap_minutes = 30
+  gap_minutes = 30,
 ): Promise<import('../types').FaultPackage[]> {
-  const res = await get<{ data?: import('../types').FaultPackage[] } | import('../types').FaultPackage[]>(
-    `/dashboard/fault-packages?plant_id=${plant_id}&hours=${hours}&min_proba=${min_proba}&gap_minutes=${gap_minutes}`
+  const hoursParam = hours != null ? `&hours=${hours}` : ''
+  const res = await get<import('../types').FaultPackage[]>(
+    `/dashboard/fault-packages?plant_id=${plant_id}${hoursParam}&min_proba=${min_proba}&gap_minutes=${gap_minutes}`
   )
-  if (Array.isArray(res)) return res
-  return (res as { data?: import('../types').FaultPackage[] }).data ?? []
+  return Array.isArray(res) ? res : []
+}
+
+export async function fetchFaultEvents(
+  plant_id: number,
+  hours: number | null,
+  min_proba = 0.5,
+  limit = 200,
+): Promise<import('../types').FaultEvent[]> {
+  const hoursParam = hours != null ? `&hours=${hours}` : ''
+  const res = await get<import('../types').FaultEvent[]>(
+    `/dashboard/events?plant_id=${plant_id}${hoursParam}&min_proba=${min_proba}&limit=${limit}`
+  )
+  return Array.isArray(res) ? res : []
 }

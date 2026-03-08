@@ -236,8 +236,13 @@ Responde SOLO con las dos secciones. Primera línea: el análisis. Luego exactam
         resp.raise_for_status()
         return resp.json().get("response", "").strip()
     except Exception:
-        top_feat  = _FEATURE_LABELS.get(top3[0][0], top3[0][0]) if top3 else "desconocido"
-        direction = "aumentó" if (top3[0][1] > 0 if top3 else False) else "redujo"
+        if top3:
+            top_feat  = _FEATURE_LABELS.get(top3[0][0], top3[0][0])
+            direction = "aumentó" if top3[0][1] > 0 else "redujo"
+        else:
+            top_feat  = "factores desconocidos"
+            direction = "afectaron"
+
         pkg_info  = f" El evento duró {duration_minutes} min ({reading_count} lecturas)." if reading_count > 1 else ""
         analisis  = (
             f"La planta {plant_id} genera {power_ac:.1f} kW pero se esperaban {expected:.1f} kW "
@@ -246,6 +251,7 @@ Responde SOLO con las dos secciones. Primera línea: el análisis. Luego exactam
         )
         recomendacion = playbook["acciones"][0] + " " + playbook["acciones"][1]
         return f"{analisis}\n---\n{recomendacion}"
+
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
@@ -267,7 +273,9 @@ def _get_context_window(db: Session, prediction_id: int, n: int = CONTEXT_ROWS) 
             p.fault_proba,
             p.fault_pred,
             p.expected_power_ac_kw,
-            p.power_residual_kw
+            p.power_residual_kw,
+            p.fault_type_pred,
+            p.fault_type_proba
         FROM solar_readings r
         LEFT JOIN ai_predictions p ON p.reading_id = r.id
         WHERE r.plant_id = (SELECT plant_id FROM target)
@@ -366,17 +374,12 @@ def explain_prediction(
         reading      = context_rows[-1] if context_rows else {}
 
         fault_type_result = None
-        if context_rows:
-            df = pd.DataFrame(context_rows)
-            df["expected_power_ac_kw"] = df["expected_power_ac_kw"].fillna(0.0)
-            df["power_residual_kw"]    = df["power_residual_kw"].fillna(0.0)
-            df["abs_residual_kw"]      = df["power_residual_kw"].abs()
-            X = build_clf_features(df)
-            X_target = X.iloc[[-1]]
-            _pid_cache = int(reading.get("plant_id") or 0)
-            fault_type_result = predict_fault_type(X_target, _pid_cache)
-
-        if fault_type_result is None:
+        if reading and reading.get("fault_type_pred"):
+            fault_type_result = {
+                "fault_type": reading["fault_type_pred"],
+                "confidence": reading.get("fault_type_proba"),
+            }
+        else:
             inferred = _infer_fault_type_rules(top_reasons, reading)
             fault_type_result = {"fault_type": inferred}
 
@@ -397,12 +400,15 @@ def explain_prediction(
     if not context:
         raise HTTPException(status_code=404, detail="Predicción no encontrada")
 
-    reading   = context[-1]
-    _plant_id = int(reading.get("plant_id") or 0)
+    reading = context[-1]
+    plant_id = reading.get("plant_id")
 
-    shap_artifact = get_shap_explainer(_plant_id)
+    if plant_id is None:
+        raise HTTPException(status_code=400, detail="Lectura sin plant_id")
+
+    shap_artifact = get_shap_explainer(plant_id)
     if shap_artifact is None:
-        raise HTTPException(status_code=503, detail=f"SHAP explainer no disponible para planta {_plant_id} — reentrenar modelo")
+        raise HTTPException(status_code=503, detail="SHAP explainer no disponible — reentrenar modelo")
 
     explainer      = shap_artifact["explainer"]
     feature_names  = shap_artifact["feature_names"]
@@ -428,9 +434,14 @@ def explain_prediction(
     top_reasons   = dict(sorted(physical.items(), key=lambda x: -abs(x[1]))[:8])
 
     # ── Clasificar tipo de falla ──────────────────────────────────────────
-    fault_type_result = predict_fault_type(X_target, _plant_id)
-    if fault_type_result is None:
-        # Fallback a reglas si el modelo aún no existe
+    # Usar predicción de DB para asegurar consistencia con Dashboard
+    if reading.get("fault_type_pred"):
+        fault_type_result = {
+            "fault_type": reading["fault_type_pred"],
+            "confidence": reading.get("fault_type_proba")
+        }
+    else:
+        # Fallback a reglas
         inferred = _infer_fault_type_rules(top_reasons, reading)
         fault_type_result = {"fault_type": inferred}
 
