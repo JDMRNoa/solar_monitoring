@@ -8,3 +8,5 @@ joblib==1.4.2
 requests==2.32.3
 scikit-learn==1.6.1
 shap
+PyJWT==2.10.1
+python-dotenv==1.0.1

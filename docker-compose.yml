@@ -85,6 +85,18 @@ services:
     profiles:
       - train
 
+  frontend:
+    build:
+      context: ./frontend-react
+      dockerfile: Dockerfile
+    container_name: solar-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   ollama_data:
