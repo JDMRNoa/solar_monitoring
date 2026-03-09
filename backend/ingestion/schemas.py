@@ -4,6 +4,9 @@ from typing import List
 class ReadingIn(BaseModel):
     ts: str
     plant_id: int = 1
+    inverter_id: str
+
+    expected_power_ac_kw: float | None = None
 
     irradiance_wm2: float
     temp_ambient_c: float

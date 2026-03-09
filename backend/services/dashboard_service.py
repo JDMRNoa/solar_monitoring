@@ -76,6 +76,7 @@ def get_fault_packages(
                 if row["fault_proba"] > current["max_fault_proba"]:
                     current["max_fault_proba"]            = row["fault_proba"]
                     current["representative_id"]          = row["id"]
+                    current["inverter_id"]                = row.get("inverter_id")
                     current["representative_expected_kw"] = row["expected_power_ac_kw"]
                     current["representative_residual_kw"] = row["power_residual_kw"]
                     current["fault_type_pred"]            = row.get("fault_type_pred")
@@ -100,6 +101,7 @@ def _new_package(row: dict, ts) -> dict:
         "reading_count":              1,
         "max_fault_proba":            row["fault_proba"],
         "representative_id":          row["id"],
+        "inverter_id":                row.get("inverter_id"),
         "representative_expected_kw": row["expected_power_ac_kw"],
         "representative_residual_kw": row["power_residual_kw"],
         "model_version":              row["model_version"],
@@ -155,9 +157,11 @@ def get_fault_events(
         fault_label   = _FAULT_LABELS.get(fault_type, "Anomalía") if fault_type else "Anomalía"
         proba_pct     = round((row.get("fault_proba") or 0) * 100)
 
+        inv = row.get("inverter_id", "Unknown")
         events.append({
             "ts":               row["ts"].isoformat() if hasattr(row["ts"], "isoformat") else row["ts"],
             "plant_id":         row["plant_id"],
+            "inverter_id":      inv,
             "event_type":       "fault_start" if is_start else "fault_end",
             "fault_type":       fault_type,
             "fault_label":      fault_label,
@@ -165,9 +169,9 @@ def get_fault_events(
             "fault_type_proba": row.get("fault_type_proba"),
             "power_residual_kw": row.get("power_residual_kw"),
             "msg": (
-                f"{fault_label} detectada (ML {proba_pct}%)"
+                f"{fault_label} detectada en {inv} (ML {proba_pct}%)"
                 if is_start
-                else f"{fault_label} resuelta"
+                else f"{fault_label} resuelta en {inv}"
             ),
         })
 
