@@ -1,12 +1,14 @@
-type Page = 'dashboard' | 'plants'
+type Page = 'dashboard' | 'plants' | 'control'
 
 interface NavbarProps {
   lastUpdated: string | null
   currentPage: Page
+  role: string | null
   onNavigate: (page: Page) => void
+  onLogout: () => void
 }
 
-export default function Navbar({ lastUpdated, currentPage, onNavigate }: NavbarProps) {
+export default function Navbar({ lastUpdated, currentPage, role, onNavigate, onLogout }: NavbarProps) {
   return (
     <header
       style={{
@@ -33,8 +35,9 @@ export default function Navbar({ lastUpdated, currentPage, onNavigate }: NavbarP
         {/* Nav tabs */}
         <nav style={{ display: 'flex', gap: '4px' }}>
           {([
+            { id: 'plants',    label: '☀ PlantGrid' },
             { id: 'dashboard', label: '📊 Dashboard' },
-            { id: 'plants',    label: '☀ Plantas' },
+            ...(role === 'admin' ? [{ id: 'control', label: '🛠 Control' }] : [])
           ] as { id: Page; label: string }[]).map(tab => {
             const active = currentPage === tab.id
             return (
@@ -60,12 +63,32 @@ export default function Navbar({ lastUpdated, currentPage, onNavigate }: NavbarP
           })}
         </nav>
 
-        {/* Last update */}
-        {lastUpdated && (
-          <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>
-            LAST UPDATE: {new Date(lastUpdated).toLocaleString()}
-          </span>
-        )}
+        {/* Right side (Update & Logout) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {lastUpdated && (
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem' }}>
+              LAST UPDATE: {new Date(lastUpdated).toLocaleString()}
+            </span>
+          )}
+          <button
+            onClick={onLogout}
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border)',
+              color: 'var(--text-dim)',
+              padding: '4px 12px',
+              borderRadius: '4px',
+              fontSize: '0.65rem',
+              cursor: 'pointer',
+              fontFamily: 'JetBrains Mono, monospace',
+              transition: 'all 0.2s',
+            }}
+            onMouseOver={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef4444' }}
+            onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+          >
+            LOGOUT
+          </button>
+        </div>
       </div>
     </header>
   )

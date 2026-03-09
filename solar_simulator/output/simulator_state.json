@@ -5,9 +5,9 @@
   "total_faults": 85,
   "fault_rate_pct": 9.08,
   "last_ts": "2025-01-02T05:00:00",
-  "last_step_at": "2026-03-08T01:39:50.838172+00:00",
-  "started_at": "2026-03-08T01:34:44.410655+00:00",
-  "stopped_at": "2026-03-08T01:39:51.874541+00:00",
+  "last_step_at": null,
+  "started_at": null,
+  "stopped_at": null,
   "errors": 0,
   "csv_path": "/app/output/solar_stream.csv",
   "config": {

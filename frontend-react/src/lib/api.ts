@@ -2,8 +2,16 @@ import type { Summary, TimeseriesItem, AlertItem, ExplainResult } from '../types
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
+import Cookies from 'js-cookie'
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
+  const token = Cookies.get('solarmonitor_jwt')
+  const headers: HeadersInit = {}
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const res = await fetch(`${BASE}${path}`, { headers })
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
   return res.json() as Promise<T>
 }
