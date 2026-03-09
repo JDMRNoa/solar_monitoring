@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.db.session import get_db
+from backend.core.security import get_current_user
 from backend.ml.registry import get_shap_explainer, predict_fault_type
 from backend.ml.features import build_clf_features
 
@@ -363,6 +364,7 @@ def explain_prediction(
     reading_count:    int = Query(1, description="Lecturas consecutivas en falla del paquete"),
     duration_minutes: int = Query(0, description="Duración del evento en minutos"),
     db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     # ── Cache hit ──────────────────────────────────────────────────────────
     cached_data = _already_explained(db, prediction_id)
