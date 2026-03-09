@@ -115,34 +115,44 @@ function PanelArray({ reading, meta }: { reading: LivePlantData | null; meta: ty
 // ── Inverter Row ──────────────────────────────────────────────────────────────
 
 function InverterRow({ reading, meta }: { reading: LivePlantData | null; meta: typeof PLANT_META[0] }) {
-  const pAc = reading?.power_ac_kw ?? 0
-  // Usar tipo inferido por ML, no el fault_type del simulador
-  const ft = (reading?.fault_pred === 1 ? (reading as any).fault_type_pred : null) ?? ''
   const loadPerInv = meta.capacity_kw / meta.inverter_count
-  // Máximo 6 inversores visibles para no romper el layout 4-col
   const visibleCount = Math.min(meta.inverter_count, 6)
+
+  // Use real inverters array if available, or simulate fallback during loading
+  const inverters = reading?.inverters ?? Array.from({ length: meta.inverter_count }).map((_, i) => ({
+    inverter_id: `I${i+1}`,
+    power_ac_kw: 0,
+    fault_proba: 0,
+    fault_pred: 0,
+  } as LivePlantData))
 
   return (
     <div style={{ display: 'flex', gap: '4px', padding: '0 12px 10px' }}>
-      {Array.from({ length: visibleCount }).map((_, i) => {
-        let invPow = reading ? pAc / meta.inverter_count : 0
+      {inverters.slice(0, visibleCount).map((inv, i) => {
+        let invPow = inv.power_ac_kw ?? 0
+        const ft = inv.fault_pred === 1 ? inv.fault_type_pred : null
+        
         let border = 'rgba(0,230,118,0.3)', bg = 'transparent', color = 'var(--text)'
-        if (ft === 'inverter_derate' && i < Math.ceil(meta.inverter_count / 2)) {
-          invPow *= 0.4; border = '#ffd600'; bg = 'rgba(255,214,0,0.08)'; color = '#ffd600'
+        
+        if (ft === 'inverter_derate') {
+          border = '#ffd600'; bg = 'rgba(255,214,0,0.08)'; color = '#ffd600'
         } else if (ft === 'grid_disconnect') {
           border = '#f44336'; bg = 'rgba(244,67,54,0.08)'; color = '#f44336'; invPow = 0
-        } else if ((reading?.fault_proba ?? 0) > 0.8 && i === 0) {
+        } else if ((inv.fault_proba ?? 0) > 0.8) {
           border = '#f44336'; bg = 'rgba(244,67,54,0.08)'; color = '#f44336'
         }
-        const pct = loadPerInv > 0 ? Math.round((invPow / loadPerInv) * 100) : 0
+
+        const pct = reading ? (loadPerInv > 0 ? Math.round((invPow / loadPerInv) * 100) : 0) : '–'
+        const label = inv.inverter_id ? inv.inverter_id.substring(inv.inverter_id.length - 2).replace('-', '') : `I${i+1}`
+
         return (
           <div key={i} style={{
             flex: 1, background: bg || '#0a0e14',
             border: `1px solid ${border}`, borderRadius: '3px',
             padding: '4px 5px', textAlign: 'center', fontSize: '0.55rem', transition: 'all 0.4s',
           }}>
-            <div style={{ color: 'var(--text-dim)', fontSize: '0.5rem', textTransform: 'uppercase' }}>I{i + 1}</div>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, color }}>{reading ? pct + '%' : '–'}</div>
+            <div style={{ color: 'var(--text-dim)', fontSize: '0.5rem', textTransform: 'uppercase' }}>{label}</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color }}>{pct !== '–' ? `${pct}%` : '–'}</div>
           </div>
         )
       })}

@@ -7,13 +7,13 @@ from sqlalchemy import text
 
 _INSERT_READING_SQL = text("""
     INSERT INTO solar_readings (
-        ts, plant_id, irradiance_wm2, temp_ambient_c, temp_module_c,
+        ts, plant_id, inverter_id, irradiance_wm2, temp_ambient_c, temp_module_c,
         power_ac_kw, power_dc_kw, energy_daily_kwh, energy_total_kwh,
         expected_power_ac_kw,
         label_is_fault, fault_type, fault_severity
     )
     VALUES (
-        :ts, :plant_id, :irradiance_wm2, :temp_ambient_c, :temp_module_c,
+        :ts, :plant_id, :inverter_id, :irradiance_wm2, :temp_ambient_c, :temp_module_c,
         :power_ac_kw, :power_dc_kw, :energy_daily_kwh, :energy_total_kwh,
         :expected_power_ac_kw,
         :label_is_fault, :fault_type, :fault_severity
@@ -40,6 +40,7 @@ def insert_reading(db: Session, r: Dict[str, Any]) -> int:
     return db.execute(_INSERT_READING_SQL, {
         "ts":                   r["ts"],
         "plant_id":             r["plant_id"],
+        "inverter_id":          r["inverter_id"],
         "irradiance_wm2":       r.get("irradiance_wm2"),
         "temp_ambient_c":       r.get("temp_ambient_c"),
         "temp_module_c":        r.get("temp_module_c"),
@@ -63,6 +64,7 @@ def insert_batch_readings(db: Session, rows: List[Dict[str, Any]]) -> List[int]:
         records.append({
             "ts":                   r["ts"],
             "plant_id":             r["plant_id"],
+            "inverter_id":          r["inverter_id"],
             "irradiance_wm2":       r.get("irradiance_wm2"),
             "temp_ambient_c":       r.get("temp_ambient_c"),
             "temp_module_c":        r.get("temp_module_c"),

@@ -15,16 +15,25 @@ def _hours_clause(hours: Optional[int], alias: str = "r") -> str:
 
 def fetch_summary(db: Session, hours: int = None):
     query = text(f"""
+        WITH plant_ts AS (
+            SELECT
+                r.plant_id, r.ts,
+                SUM(r.power_ac_kw) AS total_power,
+                MAX(p.fault_pred) AS has_fault,
+                MAX(p.fault_proba) AS max_proba
+            FROM solar_readings r
+            LEFT JOIN ai_predictions p ON p.reading_id = r.id
+            WHERE 1=1 {_hours_clause(hours)}
+            GROUP BY r.plant_id, r.ts
+        )
         SELECT
-            COUNT(r.id)                                          AS total_readings,
-            AVG(r.power_ac_kw)                                   AS avg_power,
-            MAX(r.power_ac_kw)                                   AS max_power,
-            COUNT(p.id) FILTER (WHERE p.fault_pred = 1)          AS total_faults,
-            MAX(p.fault_proba)                                   AS max_fault_proba,
-            MAX(r.ts)                                            AS last_ts
-        FROM solar_readings r
-        LEFT JOIN ai_predictions p ON p.reading_id = r.id
-        WHERE 1=1 {_hours_clause(hours)}
+            COUNT(*)                                             AS total_readings,
+            AVG(total_power)                                     AS avg_power,
+            MAX(total_power)                                     AS max_power,
+            COUNT(*) FILTER (WHERE has_fault = 1)                AS total_faults,
+            MAX(max_proba)                                       AS max_fault_proba,
+            MAX(ts)                                              AS last_ts
+        FROM plant_ts
     """)
     result = db.execute(query).mappings().first()
     return dict(result) if result else {}
@@ -32,16 +41,25 @@ def fetch_summary(db: Session, hours: int = None):
 
 def fetch_summary_by_plant(db: Session, plant_id: int, hours: int = None):
     query = text(f"""
+        WITH plant_ts AS (
+            SELECT
+                r.ts,
+                SUM(r.power_ac_kw) AS total_power,
+                MAX(p.fault_pred) AS has_fault,
+                MAX(p.fault_proba) AS max_proba
+            FROM solar_readings r
+            LEFT JOIN ai_predictions p ON p.reading_id = r.id
+            WHERE r.plant_id = :plant_id {_hours_clause(hours)}
+            GROUP BY r.ts
+        )
         SELECT
-            COUNT(r.id)                                          AS total_readings,
-            AVG(r.power_ac_kw)                                   AS avg_power,
-            MAX(r.power_ac_kw)                                   AS max_power,
-            COUNT(p.id) FILTER (WHERE p.fault_pred = 1)          AS total_faults,
-            MAX(p.fault_proba)                                   AS max_fault_proba,
-            MAX(r.ts)                                            AS last_ts
-        FROM solar_readings r
-        LEFT JOIN ai_predictions p ON p.reading_id = r.id
-        WHERE r.plant_id = :plant_id {_hours_clause(hours)}
+            COUNT(*)                                             AS total_readings,
+            AVG(total_power)                                     AS avg_power,
+            MAX(total_power)                                     AS max_power,
+            COUNT(*) FILTER (WHERE has_fault = 1)                AS total_faults,
+            MAX(max_proba)                                       AS max_fault_proba,
+            MAX(ts)                                              AS last_ts
+        FROM plant_ts
     """)
     result = db.execute(query, {"plant_id": plant_id}).mappings().first()
     return dict(result) if result else {}
@@ -50,7 +68,7 @@ def fetch_summary_by_plant(db: Session, plant_id: int, hours: int = None):
 def fetch_alerts(db: Session, min_proba: float = 0.3, hours: int = None):
     query = text(f"""
         SELECT
-            p.id, r.ts, r.plant_id,
+            p.id, r.ts, r.plant_id, r.inverter_id,
             p.fault_proba, p.fault_pred,
             p.expected_power_ac_kw, p.power_residual_kw,
             p.model_version, p.created_at
@@ -69,7 +87,7 @@ def fetch_alerts(db: Session, min_proba: float = 0.3, hours: int = None):
 def fetch_alerts_by_plant(db: Session, plant_id: int, min_proba: float = 0.3, hours: int = None):
     query = text(f"""
         SELECT
-            p.id, r.ts, r.plant_id,
+            p.id, r.ts, r.plant_id, r.inverter_id,
             p.fault_proba, p.fault_pred,
             p.expected_power_ac_kw, p.power_residual_kw,
             p.model_version, p.created_at
@@ -89,12 +107,17 @@ def fetch_alerts_by_plant(db: Session, plant_id: int, min_proba: float = 0.3, ho
 def fetch_timeseries(db: Session, hours: int = None, limit: int = 2000):
     query = text(f"""
         SELECT
-            r.ts, r.plant_id, r.power_ac_kw,
-            r.irradiance_wm2, r.temp_module_c,
-            p.expected_power_ac_kw, p.power_residual_kw, p.fault_proba
+            r.ts, r.plant_id, 
+            SUM(r.power_ac_kw) AS power_ac_kw,
+            AVG(r.irradiance_wm2) AS irradiance_wm2, 
+            AVG(r.temp_module_c) AS temp_module_c,
+            SUM(p.expected_power_ac_kw) AS expected_power_ac_kw, 
+            SUM(p.power_residual_kw) AS power_residual_kw, 
+            MAX(p.fault_proba) AS fault_proba
         FROM solar_readings r
         LEFT JOIN ai_predictions p ON p.reading_id = r.id
         WHERE 1=1 {_hours_clause(hours)}
+        GROUP BY r.ts, r.plant_id
         ORDER BY r.ts
         LIMIT :limit
     """)
@@ -105,12 +128,17 @@ def fetch_timeseries(db: Session, hours: int = None, limit: int = 2000):
 def fetch_timeseries_by_plant(db: Session, plant_id: int, hours: int = None, limit: int = 2000):
     query = text(f"""
         SELECT
-            r.ts, r.plant_id, r.power_ac_kw,
-            r.irradiance_wm2, r.temp_module_c,
-            p.expected_power_ac_kw, p.power_residual_kw, p.fault_proba
+            r.ts, r.plant_id, 
+            SUM(r.power_ac_kw) AS power_ac_kw,
+            AVG(r.irradiance_wm2) AS irradiance_wm2, 
+            AVG(r.temp_module_c) AS temp_module_c,
+            SUM(p.expected_power_ac_kw) AS expected_power_ac_kw, 
+            SUM(p.power_residual_kw) AS power_residual_kw, 
+            MAX(p.fault_proba) AS fault_proba
         FROM solar_readings r
         LEFT JOIN ai_predictions p ON p.reading_id = r.id
         WHERE r.plant_id = :plant_id {_hours_clause(hours)}
+        GROUP BY r.ts, r.plant_id
         ORDER BY r.ts DESC
         LIMIT :limit
     """)
@@ -135,6 +163,7 @@ def fetch_raw_faults_by_plant(
             p.id,
             r.ts,
             r.plant_id,
+            r.inverter_id,
             p.fault_proba,
             p.fault_pred,
             p.expected_power_ac_kw,
@@ -182,12 +211,13 @@ def fetch_fault_events_by_plant(
                 p.id,
                 r.ts,
                 r.plant_id,
+                r.inverter_id,
                 p.fault_pred,
                 p.fault_proba,
                 p.fault_type_pred,
                 p.fault_type_proba,
                 p.power_residual_kw,
-                LAG(p.fault_pred) OVER (PARTITION BY r.plant_id ORDER BY r.ts) AS prev_fault_pred
+                LAG(p.fault_pred) OVER (PARTITION BY r.inverter_id ORDER BY r.ts) AS prev_fault_pred
             FROM ai_predictions p
             JOIN solar_readings r ON r.id = p.reading_id
             WHERE r.plant_id = :plant_id

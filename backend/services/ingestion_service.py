@@ -16,14 +16,16 @@ def _build_live_event(readings: List[Dict[str, Any]], predictions: List[Dict[str
     Construye el payload SSE que recibe el frontend.
     Incluye datos de clima (_meta) + predicciones ML por planta.
     """
-    by_plant: Dict[int, Any] = {}
+    by_inverter: Dict[str, Any] = {}
 
     for r, pred in zip(readings, predictions):
         pid = r.get("plant_id")
+        inv_id = r.get("inverter_id")
         meta = r.get("_meta", {}) or {}
 
-        by_plant[pid] = {
+        by_inverter[inv_id] = {
             "plant_id":            pid,
+            "inverter_id":         inv_id,
             "ts":                  r.get("ts"),
             # Clima (del _meta del simulador)
             "cloud_cover":         meta.get("cloud_cover"),
@@ -48,7 +50,7 @@ def _build_live_event(readings: List[Dict[str, Any]], predictions: List[Dict[str
             "power_residual_kw":   pred.get("power_residual_kw"),
         }
 
-    return {"plants": list(by_plant.values())}
+    return {"inverters": list(by_inverter.values())}
 
 
 def ingest_batch_service(payload, db: Session) -> Dict[str, Any]:

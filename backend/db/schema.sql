@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS solar_readings (
   id                   BIGSERIAL PRIMARY KEY,
   ts                   TIMESTAMPTZ NOT NULL,
   plant_id             INT NOT NULL,
+  inverter_id          TEXT NOT NULL,
 
   -- Físicos
   irradiance_wm2       DOUBLE PRECISION,
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS solar_readings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_solar_readings_ts         ON solar_readings(ts);
-CREATE INDEX IF NOT EXISTS idx_solar_readings_plant_ts   ON solar_readings(plant_id, ts);
+CREATE INDEX IF NOT EXISTS idx_solar_readings_plant_inv  ON solar_readings(plant_id, inverter_id, ts);
 CREATE INDEX IF NOT EXISTS idx_solar_readings_fault      ON solar_readings(label_is_fault) WHERE label_is_fault = 1;
 
 -- ─────────────────────────────────────────────────────────────────────────────

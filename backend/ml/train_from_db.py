@@ -79,7 +79,7 @@ def load_training_data() -> pd.DataFrame:
         FROM solar_readings
         WHERE power_ac_kw IS NOT NULL
           AND irradiance_wm2 > 20
-        ORDER BY plant_id, ts
+        ORDER BY plant_id, inverter_id, ts
     """)
     df = pd.read_sql(query, engine)
     if df.empty:
@@ -110,7 +110,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
     print(f"  Planta {plant_id}  ({len(df_plant):,} registros diurnos)")
     print(f"{'─'*60}")
 
-    df_plant = df_plant.sort_values("ts").reset_index(drop=True)
+    df_plant = df_plant.sort_values(["inverter_id", "ts"]).reset_index(drop=True)
 
     # Split temporal 80/20
     cut = int(len(df_plant) * 0.8)

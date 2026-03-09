@@ -3,23 +3,24 @@ import pandas as pd
 
 # Capacidad por planta (kW) — igual que en PlantGrid y simulator
 PLANT_CAPACITY_KW: dict[int, float] = {
-    1: 200.0,
-    2: 80.0,
-    3: 150.0,
-    4: 120.0,
-    5: 90.0,
-    6: 300.0,
-    7: 60.0,
-    8: 45.0,
+    1: 200.0, 2: 80.0, 3: 150.0, 4: 120.0,
+    5: 90.0, 6: 300.0, 7: 60.0, 8: 45.0,
+}
+PLANT_INVERTER_COUNT: dict[int, int] = {
+    1: 6, 2: 3, 3: 5, 4: 4,
+    5: 3, 6: 8, 7: 2, 8: 2,
 }
 DEFAULT_CAPACITY_KW = 100.0
-
+DEFAULT_INVERTER_COUNT = 4
 
 def get_capacity(plant_id) -> float:
     try:
-        return PLANT_CAPACITY_KW.get(int(plant_id), DEFAULT_CAPACITY_KW)
+        pid = int(plant_id)
+        cap = PLANT_CAPACITY_KW.get(pid, DEFAULT_CAPACITY_KW)
+        inv = PLANT_INVERTER_COUNT.get(pid, DEFAULT_INVERTER_COUNT)
+        return cap / inv
     except Exception:
-        return DEFAULT_CAPACITY_KW
+        return DEFAULT_CAPACITY_KW / DEFAULT_INVERTER_COUNT
 
 
 # ── Utilidades internas ───────────────────────────────────────────────────────
@@ -113,14 +114,14 @@ def build_clf_features(df: pd.DataFrame) -> pd.DataFrame:
     X["power_ratio"]    = _safe_div(X["power_ac_kw"],         X["capacity_kw"])
     X["residual_ratio"] = _safe_div(X["power_residual_kw"],   X["capacity_kw"])
 
-    # Orden temporal por planta para deltas
-    sort_cols = ["plant_id", "ts"] if "plant_id" in X.columns else ["ts"]
+    # Orden temporal por inversor para deltas
+    sort_cols = ["inverter_id", "ts"] if "inverter_id" in X.columns else ["ts"]
     X = X.sort_values(sort_cols)
 
-    if "plant_id" in X.columns:
-        X["delta_power_ac_kw"]   = X.groupby("plant_id")["power_ac_kw"].diff()
-        X["delta_irr_wm2"]       = X.groupby("plant_id")["irradiance_wm2"].diff()
-        X["delta_temp_module_c"] = X.groupby("plant_id")["temp_module_c"].diff()
+    if "inverter_id" in X.columns:
+        X["delta_power_ac_kw"]   = X.groupby("inverter_id")["power_ac_kw"].diff()
+        X["delta_irr_wm2"]       = X.groupby("inverter_id")["irradiance_wm2"].diff()
+        X["delta_temp_module_c"] = X.groupby("inverter_id")["temp_module_c"].diff()
     else:
         X["delta_power_ac_kw"]   = X["power_ac_kw"].diff()
         X["delta_irr_wm2"]       = X["irradiance_wm2"].diff()
