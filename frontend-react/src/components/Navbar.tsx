@@ -37,15 +37,15 @@ export default function Navbar({ lastUpdated, currentPage, role, onNavigate, onL
           {([
             { id: 'plants',    label: '☀ PlantGrid' },
             { id: 'dashboard', label: '📊 Dashboard' },
-            ...(role === 'admin' ? [{ id: 'control', label: '🛠 Control' }] : [])
-          ] as { id: Page; label: string }[]).map(tab => {
+            ...(role === 'admin' ? [{ id: 'control' as Page, label: '🛠 Control' }] : [])
+          ]).map(tab => {
             const active = currentPage === tab.id
             return (
               <button
                 key={tab.id}
-                onClick={() => onNavigate(tab.id)}
+                onClick={() => onNavigate(tab.id as Page)}
                 style={{
-                  background: active ? 'rgba(245,158,11,0.12)' : 'transparent',
+                  background: active ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
                   border: active ? '1px solid rgba(245,158,11,0.4)' : '1px solid transparent',
                   color: active ? '#f59e0b' : 'var(--text-dim)',
                   borderRadius: '4px',
