@@ -4,7 +4,6 @@ from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
-
 _INSERT_READING_SQL = text("""
     INSERT INTO solar_readings (
         ts, plant_id, inverter_id, irradiance_wm2, temp_ambient_c, temp_module_c,
@@ -59,9 +58,12 @@ def insert_batch_readings(db: Session, rows: List[Dict[str, Any]]) -> List[int]:
     if not rows:
         return []
         
-    records = []
+    inserted_ids = []
+    
+    # Executemany con text() no soporta RETURNING en SQlAlchemy 2.0 fácilmente dict.
+    # Por seguridad y consistencia, iteramos en la misma transacción:
     for r in rows:
-        records.append({
+        row_id = db.execute(_INSERT_READING_SQL, {
             "ts":                   r["ts"],
             "plant_id":             r["plant_id"],
             "inverter_id":          r["inverter_id"],
@@ -76,10 +78,10 @@ def insert_batch_readings(db: Session, rows: List[Dict[str, Any]]) -> List[int]:
             "label_is_fault":       r.get("label_is_fault", 0),
             "fault_type":           r.get("fault_type", ""),
             "fault_severity":       r.get("fault_severity", 0),
-        })
-
-    result = db.execute(_INSERT_READING_SQL, records)
-    return [row[0] for row in result.fetchall()]
+        }).scalar_one()
+        inserted_ids.append(row_id)
+        
+    return inserted_ids
 
 
 def insert_prediction(db: Session, reading_id: int, pred: Dict[str, Any]) -> None:
@@ -99,9 +101,9 @@ def insert_batch_predictions(db: Session, reading_ids: List[int], predictions: L
     if not reading_ids or not predictions:
         return
         
-    records = []
+    # Por seguridad y evitar ResourceClosedError en executemany de SQlAlchemy:
     for rid, pred in zip(reading_ids, predictions):
-        records.append({
+        db.execute(_INSERT_PREDICTION_SQL, {
             "reading_id":           rid,
             "model_version":        "phys_rf_v1",
             "expected_power_ac_kw": pred["expected_power_ac_kw"],
@@ -111,5 +113,3 @@ def insert_batch_predictions(db: Session, reading_ids: List[int], predictions: L
             "fault_type_pred":      pred.get("fault_type_pred"),
             "fault_type_proba":     pred.get("fault_type_proba"),
         })
-        
-    db.execute(_INSERT_PREDICTION_SQL, records)

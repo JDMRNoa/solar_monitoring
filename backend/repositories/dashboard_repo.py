@@ -13,6 +13,29 @@ def _hours_clause(hours: Optional[int], alias: str = "r") -> str:
     return ""
 
 
+def _bucket_minutes(hours: Optional[int]) -> int:
+    """
+    Devuelve el tamaño del bucket de agregación en minutos según el rango.
+    Apunta a ~300 puntos por gráfica para que se vea limpio.
+      ≤ 6h   →  1 min  (datos detallados, pocos puntos)
+      ≤ 12h  →  3 min
+      ≤ 24h  →  5 min
+      ≤ 48h  → 10 min
+      ≤ 168h →  30 min  (7 días)
+      ≤ 720h →  2h      (30 días)
+      >  720h →  6h      (todo)
+    """
+    if not hours:
+        return 360  # "Todo" → buckets de 6h
+    if hours <= 6:    return 1
+    if hours <= 12:   return 3
+    if hours <= 24:   return 5
+    if hours <= 48:   return 10
+    if hours <= 168:  return 30
+    if hours <= 720:  return 120
+    return 360
+
+
 def fetch_summary(db: Session, hours: int = None):
     query = text(f"""
         WITH plant_ts AS (
@@ -105,20 +128,38 @@ def fetch_alerts_by_plant(db: Session, plant_id: int, min_proba: float = 0.3, ho
 
 
 def fetch_timeseries(db: Session, hours: int = None, limit: int = 2000):
+    bucket = _bucket_minutes(hours)
     query = text(f"""
+        WITH bucketed AS (
+            SELECT
+                to_timestamp(
+                    floor(extract(epoch from r.ts) / ({bucket} * 60)) * ({bucket} * 60)
+                ) AS bucket_ts,
+                r.plant_id,
+                r.ts,
+                SUM(r.power_ac_kw) AS ts_power_ac,
+                AVG(r.irradiance_wm2) AS ts_irradiance,
+                AVG(r.temp_module_c) AS ts_temp,
+                SUM(COALESCE(p.expected_power_ac_kw, r.expected_power_ac_kw)) AS ts_expected,
+                SUM(COALESCE(p.power_residual_kw, r.power_ac_kw - r.expected_power_ac_kw)) AS ts_residual,
+                MAX(p.fault_proba) AS ts_fault_proba
+            FROM solar_readings r
+            LEFT JOIN ai_predictions p ON p.reading_id = r.id
+            WHERE 1=1 {_hours_clause(hours)}
+            GROUP BY bucket_ts, r.plant_id, r.ts
+        )
         SELECT
-            r.ts, r.plant_id, 
-            SUM(r.power_ac_kw) AS power_ac_kw,
-            AVG(r.irradiance_wm2) AS irradiance_wm2, 
-            AVG(r.temp_module_c) AS temp_module_c,
-            SUM(p.expected_power_ac_kw) AS expected_power_ac_kw, 
-            SUM(p.power_residual_kw) AS power_residual_kw, 
-            MAX(p.fault_proba) AS fault_proba
-        FROM solar_readings r
-        LEFT JOIN ai_predictions p ON p.reading_id = r.id
-        WHERE 1=1 {_hours_clause(hours)}
-        GROUP BY r.ts, r.plant_id
-        ORDER BY r.ts
+            bucket_ts AS ts,
+            plant_id,
+            AVG(ts_power_ac)    AS power_ac_kw,
+            AVG(ts_irradiance)  AS irradiance_wm2,
+            AVG(ts_temp)        AS temp_module_c,
+            AVG(ts_expected)    AS expected_power_ac_kw,
+            AVG(ts_residual)    AS power_residual_kw,
+            MAX(ts_fault_proba) AS fault_proba
+        FROM bucketed
+        GROUP BY bucket_ts, plant_id
+        ORDER BY bucket_ts
         LIMIT :limit
     """)
     result = db.execute(query, {"limit": limit}).mappings().all()
@@ -126,20 +167,38 @@ def fetch_timeseries(db: Session, hours: int = None, limit: int = 2000):
 
 
 def fetch_timeseries_by_plant(db: Session, plant_id: int, hours: int = None, limit: int = 2000):
+    bucket = _bucket_minutes(hours)
     query = text(f"""
+        WITH bucketed AS (
+            SELECT
+                to_timestamp(
+                    floor(extract(epoch from r.ts) / ({bucket} * 60)) * ({bucket} * 60)
+                ) AS bucket_ts,
+                r.plant_id,
+                r.ts,
+                SUM(r.power_ac_kw) AS ts_power_ac,
+                AVG(r.irradiance_wm2) AS ts_irradiance,
+                AVG(r.temp_module_c) AS ts_temp,
+                SUM(COALESCE(p.expected_power_ac_kw, r.expected_power_ac_kw)) AS ts_expected,
+                SUM(COALESCE(p.power_residual_kw, r.power_ac_kw - r.expected_power_ac_kw)) AS ts_residual,
+                MAX(p.fault_proba) AS ts_fault_proba
+            FROM solar_readings r
+            LEFT JOIN ai_predictions p ON p.reading_id = r.id
+            WHERE r.plant_id = :plant_id {_hours_clause(hours)}
+            GROUP BY bucket_ts, r.plant_id, r.ts
+        )
         SELECT
-            r.ts, r.plant_id, 
-            SUM(r.power_ac_kw) AS power_ac_kw,
-            AVG(r.irradiance_wm2) AS irradiance_wm2, 
-            AVG(r.temp_module_c) AS temp_module_c,
-            SUM(p.expected_power_ac_kw) AS expected_power_ac_kw, 
-            SUM(p.power_residual_kw) AS power_residual_kw, 
-            MAX(p.fault_proba) AS fault_proba
-        FROM solar_readings r
-        LEFT JOIN ai_predictions p ON p.reading_id = r.id
-        WHERE r.plant_id = :plant_id {_hours_clause(hours)}
-        GROUP BY r.ts, r.plant_id
-        ORDER BY r.ts DESC
+            bucket_ts AS ts,
+            plant_id,
+            AVG(ts_power_ac)    AS power_ac_kw,
+            AVG(ts_irradiance)  AS irradiance_wm2,
+            AVG(ts_temp)        AS temp_module_c,
+            AVG(ts_expected)    AS expected_power_ac_kw,
+            AVG(ts_residual)    AS power_residual_kw,
+            MAX(ts_fault_proba) AS fault_proba
+        FROM bucketed
+        GROUP BY bucket_ts, plant_id
+        ORDER BY bucket_ts DESC
         LIMIT :limit
     """)
     result = db.execute(query, {"plant_id": plant_id, "limit": limit}).mappings().all()
