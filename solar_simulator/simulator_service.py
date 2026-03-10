@@ -29,6 +29,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -72,6 +73,8 @@ AUTOSTART       = os.getenv("AUTOSTART", "false").lower() == "true"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 CSV_PATH        = OUTPUT_DIR / "solar_stream.csv"
 STATE_PATH      = OUTPUT_DIR / "simulator_state.json"
+BACKUPS_DIR     = OUTPUT_DIR / "backups"
+BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -389,14 +392,21 @@ async def manual_step(req: StepRequest = StepRequest()):
 @app.delete("/reset", tags=["control"])
 async def reset():
     """
-    Borra CSV y checkpoint, reinicia contadores.
+    Hace snapshot del CSV actual a backups/, luego borra CSV/state y reinicia contadores.
     Requiere que el generador esté detenido.
     """
     if GEN.running:
         raise HTTPException(409, "Detén el generador con /stop antes de hacer reset.")
 
+    backup_id = None
     if CSV_PATH.exists():
+        ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        backup_path = BACKUPS_DIR / f"solar_stream_{ts}.csv"
+        shutil.copy2(CSV_PATH, backup_path)
+        backup_id = f"solar_stream_{ts}.csv"
+        log.info("Snapshot guardado: %s", backup_path)
         CSV_PATH.unlink()
+
     if STATE_PATH.exists():
         STATE_PATH.unlink()
 
@@ -410,7 +420,7 @@ async def reset():
     GEN.simulator     = _build_simulator(START_TS_STR)
 
     log.info("Reset completo ejecutado")
-    return {"status": "reset", "next_start_ts": START_TS_STR}
+    return {"status": "reset", "next_start_ts": START_TS_STR, "backup_id": backup_id}
 
 @app.get("/faults", tags=["control"])
 def get_active_faults():
@@ -420,36 +430,138 @@ def get_active_faults():
 
     faults = []
     for plant_id, sim in GEN.simulator.simulators.items():
-        for f in sim.active_faults:
+        for f in sim.faults.active_faults:
+            inv_idx = f.params.get("inv_idx", "?")
+            inverter_id = f"P{plant_id}-INV{inv_idx}" if inv_idx != "?" else f"P{plant_id}"
             faults.append({
-                "plant_id":   plant_id,
-                "inverter_id": f.params.get("inv_idx", "?"),
-                "fault_type": f.fault_type,
-                "severity":   f.severity,
-                "remaining":  f.remaining,
+                "plant_id":    plant_id,
+                "inverter_id": inverter_id,
+                "fault_type":  f.fault_type.value if hasattr(f.fault_type, "value") else str(f.fault_type),
+                "severity":    f.severity,
+                "remaining":   f.remaining,
             })
 
     return {"faults": faults}
 
 
+_reingest_status: dict = {"running": False, "output": "", "error": "", "started_at": None}
+
+
 @app.post("/reingest", tags=["control"])
-async def reingest():
-    """Dispara reingest_csv.py para reenviar solar_stream.csv al backend."""
-    import asyncio
-    from pathlib import Path
+async def reingest(backup_id: str = None):
+    """
+    Lanza reingest_csv.py en background y devuelve 202 inmediatamente.
+    Consulta /reingest/status para seguir el progreso.
+    """
+    global _reingest_status
+    if _reingest_status["running"]:
+        return {"status": "already_running", "message": "Reingest ya está en curso"}
 
     script = Path(__file__).parent / "reingest_csv.py"
     if not script.exists():
         raise HTTPException(404, "reingest_csv.py no encontrado")
 
-    proc = await asyncio.create_subprocess_exec(
-        "python", str(script),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+    if backup_id:
+        csv_path = BACKUPS_DIR / backup_id
+        if not csv_path.exists():
+            raise HTTPException(404, f"Backup '{backup_id}' no encontrado")
+        cmd = ["python", str(script), "--csv", str(csv_path), "--url", API_URL or "http://backend:8000"]
+    else:
+        cmd = ["python", str(script), "--url", API_URL or "http://backend:8000"]
 
-    if proc.returncode != 0:
-        raise HTTPException(500, stderr.decode()[:500])
+    async def _run_bg():
+        global _reingest_status
+        _reingest_status = {"running": True, "output": "", "error": "", "started_at": datetime.utcnow().isoformat()}
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                _reingest_status["output"] = stdout.decode()[-1000:]
+                _reingest_status["error"] = ""
+            else:
+                _reingest_status["error"] = stderr.decode()[-500:]
+                _reingest_status["output"] = stdout.decode()[-500:]
+        except Exception as e:
+            _reingest_status["error"] = str(e)
+        finally:
+            _reingest_status["running"] = False
 
-    return {"status": "ok", "output": stdout.decode()[-500:]}
+    asyncio.create_task(_run_bg())
+    return {"status": "started", "message": "Reingest iniciado en background. Consulta /reingest/status para seguir el progreso."}
+
+
+@app.get("/reingest/status", tags=["control"])
+def reingest_status():
+    """Estado del último reingest en background."""
+    return _reingest_status
+
+
+@app.get("/backups", tags=["control"])
+def list_csv_backups():
+    """Lista los snapshots CSV disponibles en backups/."""
+    files = sorted(BACKUPS_DIR.glob("*.csv"), reverse=True)
+    result = []
+    for f in files:
+        stat = f.stat()
+        result.append({
+            "id":       f.name,
+            "size_mb":  round(stat.st_size / 1_048_576, 2),
+            "created":  datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+        })
+    return {"backups": result}
+
+
+@app.post("/backups/{backup_id}/restore", tags=["control"])
+def restore_csv_backup(backup_id: str):
+    """
+    Copia backup_id -> solar_stream.csv (reemplaza el activo).
+    Actualiza el estado del simulador (total_records, last_ts) leyendo el CSV.
+    Requiere que el generador esté detenido.
+    """
+    if GEN.running:
+        raise HTTPException(409, "Detén el generador con /stop antes de restaurar.")
+
+    src = BACKUPS_DIR / backup_id
+    if not src.exists():
+        raise HTTPException(404, f"Backup '{backup_id}' no encontrado")
+
+    shutil.copy2(src, CSV_PATH)
+    log.info("Backup restaurado: %s -> %s", src, CSV_PATH)
+
+    # Leer el CSV restaurado y actualizar el estado del generador
+    try:
+        df = pd.read_csv(CSV_PATH)
+        df.columns = [c.strip().lower() for c in df.columns]
+
+        total_records = len(df)
+        total_faults  = int(df["label_is_fault"].sum()) if "label_is_fault" in df.columns else 0
+        last_ts_raw   = df["ts"].iloc[-1] if "ts" in df.columns and len(df) > 0 else None
+        last_ts       = _to_utc_iso(str(last_ts_raw)) if last_ts_raw else None
+
+        GEN.total_records = total_records
+        GEN.total_faults  = total_faults
+        GEN.last_ts       = last_ts
+        GEN.step_count    = total_records  # aproximación razonable
+
+        # Reconstruir el simulador desde el último timestamp del CSV
+        if last_ts:
+            GEN.simulator = _build_simulator(last_ts)
+
+        _save_state()
+        log.info("Estado actualizado tras restore: records=%d faults=%d last_ts=%s",
+                 total_records, total_faults, last_ts)
+    except Exception as e:
+        log.warning("No se pudo leer el CSV para actualizar estado: %s", e)
+
+    return {
+        "status":         "ok",
+        "restored":       backup_id,
+        "csv_path":       str(CSV_PATH),
+        "total_records":  GEN.total_records,
+        "total_faults":   GEN.total_faults,
+        "last_ts":        GEN.last_ts,
+    }

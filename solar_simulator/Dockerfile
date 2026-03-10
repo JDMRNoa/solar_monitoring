@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
 # Código
-COPY simulator_core.py simulator_service.py ./
+COPY simulator_core.py simulator_service.py reingest_csv.py ./
 
 # Directorio de salida (montar como volumen en producción)
 RUN mkdir -p /app/output
