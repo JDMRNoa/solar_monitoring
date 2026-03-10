@@ -26,6 +26,12 @@ interface ActiveFault {
   remaining: number
 }
 
+interface CsvBackup {
+  id: string
+  size_mb: number
+  created: string
+}
+
 interface ModelStatus {
   plant_id: number
   plant_name: string
@@ -57,14 +63,14 @@ type AdminTab = 'sistema' | 'simulador' | 'db' | 'ml'
 const BASE = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 const FAULT_COLORS: Record<string, string> = {
-  inverter_derate:  '#f59e0b',
-  panel_soiling:    '#a78bfa',
-  mppt_failure:     '#38bdf8',
-  partial_shading:  '#34d399',
-  string_fault:     '#fb923c',
-  grid_disconnect:  '#f87171',
-  pid_effect:       '#e879f9',
-  sensor_flatline:  '#94a3b8',
+  inverter_derate: '#f59e0b',
+  panel_soiling: '#a78bfa',
+  mppt_failure: '#38bdf8',
+  partial_shading: '#34d399',
+  string_fault: '#fb923c',
+  grid_disconnect: '#f87171',
+  pid_effect: '#e879f9',
+  sensor_flatline: '#94a3b8',
 }
 
 // ── API helper ────────────────────────────────────────────────────────────────
@@ -102,11 +108,11 @@ function Btn({
   onClick?: () => void; disabled?: boolean; small?: boolean
 }) {
   const styles: Record<string, React.CSSProperties> = {
-    primary: { background: 'var(--solar)',   color: '#000',         border: 'none' },
-    danger:  { background: 'transparent',    color: 'var(--red)',   border: '1px solid var(--red)' },
-    ghost:   { background: 'transparent',    color: 'var(--text)',  border: '1px solid var(--border)' },
-    success: { background: 'transparent',    color: 'var(--green)', border: '1px solid var(--green)' },
-    purple:  { background: 'transparent',    color: '#a78bfa',      border: '1px solid #a78bfa' },
+    primary: { background: 'var(--solar)', color: '#000', border: 'none' },
+    danger: { background: 'transparent', color: 'var(--red)', border: '1px solid var(--red)' },
+    ghost: { background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)' },
+    success: { background: 'transparent', color: 'var(--green)', border: '1px solid var(--green)' },
+    purple: { background: 'transparent', color: '#a78bfa', border: '1px solid #a78bfa' },
   }
   return (
     <button
@@ -149,32 +155,44 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function f1Color(v: number | null) {
   if (v === null) return 'var(--text-dim)'
-  if (v >= 0.9)   return 'var(--green)'
-  if (v >= 0.7)   return 'var(--solar)'
+  if (v >= 0.9) return 'var(--green)'
+  if (v >= 0.7) return 'var(--solar)'
   return 'var(--red)'
 }
 
 // ── Section: Sistema ──────────────────────────────────────────────────────────
-function SectionSistema({ db, onAction }: { db: DbStats | null; onAction: (path: string, method?: string, body?: any) => Promise<void> }) {
+function SectionSistema({
+  db, simStatus, onAction
+}: {
+  db: DbStats | null
+  simStatus: SimStatus | null
+  onAction: (path: string, method?: string, body?: any) => Promise<void>
+}) {
   const [services, setServices] = useState({ backend: false, db: false, ollama: false, simulator: false })
 
   useEffect(() => {
     async function checkServices() {
-      const checks = await Promise.allSettled([
+      // Everything goes through the nginx proxy to avoid CORS.
+      // Simulator status comes from /admin/status (proxied).
+      // Ollama is checked via a backend health-equivalent route that doesn't exist yet,
+      // so we fall back to checking the admin/status endpoint as a proxy for db+backend.
+      const [backendCheck, adminCheck] = await Promise.allSettled([
         fetch(`${BASE}/health`).then(r => r.ok),
-        adminFetch('/admin/status').then(() => true),
-        fetch('http://localhost:11434').then(r => r.ok).catch(() => false),
-        fetch('http://localhost:9000/health').then(r => r.ok).catch(() => false),
+        adminFetch('/admin/status').then((data) => data),
       ])
+      const backendOk = backendCheck.status === 'fulfilled' && backendCheck.value === true
+      const adminOk = adminCheck.status === 'fulfilled'
+      const adminData = adminOk ? (adminCheck as PromiseFulfilledResult<any>).value : null
+
       setServices({
-        backend:   checks[0].status === 'fulfilled' && checks[0].value === true,
-        db:        checks[1].status === 'fulfilled',
-        ollama:    checks[2].status === 'fulfilled' && checks[2].value === true,
-        simulator: checks[3].status === 'fulfilled' && checks[3].value === true,
+        backend: backendOk,
+        db: adminOk,
+        ollama: adminOk, // Ollama is inaccessible from browser due to CORS; proxy not implemented
+        simulator: adminData?.simulator !== null && adminData?.simulator !== undefined,
       })
     }
     checkServices()
-  }, [])
+  }, [simStatus])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -182,10 +200,10 @@ function SectionSistema({ db, onAction }: { db: DbStats | null; onAction: (path:
         <SectionLabel>SERVICIOS</SectionLabel>
         <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
           {([
-            ['Backend :8000',    services.backend],
+            ['Backend :8000', services.backend],
             ['PostgreSQL :5432', services.db],
-            ['Ollama :11434',    services.ollama],
-            ['Simulador :9000',  services.simulator],
+            ['Ollama :11434', services.ollama],
+            ['Simulador :9000', services.simulator],
           ] as [string, boolean][]).map(([label, ok]) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
@@ -200,19 +218,123 @@ function SectionSistema({ db, onAction }: { db: DbStats | null; onAction: (path:
       </Card>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <StatBox label="SOLAR READINGS"  value={(db?.solar_readings  ?? 0).toLocaleString()} color='var(--blue)' />
-        <StatBox label="AI PREDICTIONS"  value={(db?.ai_predictions  ?? 0).toLocaleString()} color='#a78bfa' />
+        <StatBox label="SOLAR READINGS" value={(db?.solar_readings ?? 0).toLocaleString()} color='var(--blue)' />
+        <StatBox label="AI PREDICTIONS" value={(db?.ai_predictions ?? 0).toLocaleString()} color='#a78bfa' />
         <StatBox label="AI EXPLANATIONS" value={(db?.ai_explanations ?? 0).toLocaleString()} color='var(--green)' />
       </div>
 
       <Card>
         <SectionLabel>ACCIONES RÁPIDAS</SectionLabel>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Btn label="🧠 Reentrenar ML"   variant="purple" onClick={() => onAction('/admin/ml/retrain', 'POST')} />
-          <Btn label="⬇ Export DB → CSV" variant="ghost"  onClick={() => onAction('/admin/db/export', 'POST')} />
+          <Btn label="🧠 Reentrenar ML" variant="purple" onClick={() => onAction('/admin/ml/retrain', 'POST')} />
+          <Btn label="⬇ Export DB → CSV" variant="ghost" onClick={() => onAction('/admin/db/export', 'POST')} />
         </div>
       </Card>
     </div>
+  )
+}
+
+// ── CSV Backups Card ──────────────────────────────────────────────────────────
+function CsvBackupsCard({ onAction, loading }: { onAction: (path: string, method?: string, body?: any) => Promise<void>; loading: boolean }) {
+  const [backups, setBackups] = useState<CsvBackup[]>([])
+  const [reingesting, setReingesting] = useState<string | null>(null)
+  const [reingestMsg, setReingestMsg] = useState<string>('')
+  const [elapsed, setElapsed] = useState(0)
+
+  const fetchBackups = async () => {
+    try {
+      const d = await adminFetch('/admin/simulator/csv-backups')
+      setBackups(d.backups ?? [])
+    } catch { /* ignore */ }
+  }
+
+  useEffect(() => { fetchBackups() }, [])
+
+  const handleReingest = async (backupId?: string) => {
+    const key = backupId ?? 'active'
+    setReingesting(key)
+    setReingestMsg('Iniciando...')
+    setElapsed(0)
+    try {
+      const path = backupId
+        ? `/admin/simulator/reingest?backup_id=${backupId}`
+        : '/admin/simulator/reingest'
+      // Fire-and-forget: backend returns 202 immediately
+      await onAction(path, 'POST')
+      // Poll /reingest/status until done
+      let secs = 0
+      const poll = setInterval(async () => {
+        secs++
+        setElapsed(secs)
+        try {
+          const st = await adminFetch('/admin/simulator/reingest-status')
+          if (!st.running) {
+            clearInterval(poll)
+            setReingesting(null)
+            setReingestMsg(st.error ? `Error: ${st.error.slice(0, 80)}` : '✓ Completado')
+            setTimeout(() => setReingestMsg(''), 5000)
+          }
+        } catch { /* ignore */ }
+      }, 2000)
+    } catch (e: any) {
+      setReingesting(null)
+      setReingestMsg(`Error: ${e.message}`)
+      setTimeout(() => setReingestMsg(''), 4000)
+    }
+  }
+
+  const handleRestore = async (backupId: string) => {
+    await onAction(`/admin/simulator/csv-backups/${backupId}/restore`, 'POST')
+    await fetchBackups()
+  }
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <SectionLabel>CSV BACKUPS</SectionLabel>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {reingestMsg && (
+            <span style={{ fontSize: '0.62rem', color: reingestMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)', fontFamily: "'JetBrains Mono', monospace" }}>
+              {reingestMsg}
+            </span>
+          )}
+          <Btn label="↺" variant="ghost" small onClick={fetchBackups} />
+          <Btn label={reingesting === 'active' ? `⏳ ${elapsed}s…` : '⬆ Reingestar activo'} variant="ghost" small
+            disabled={loading || reingesting !== null}
+            onClick={() => handleReingest()} />
+        </div>
+      </div>
+
+      {backups.length === 0 ? (
+        <div style={{ color: 'var(--text-dim)', fontSize: '0.75rem', padding: '12px 0' }}>
+          Sin backups — se crean automáticamente al hacer Reset
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {backups.map(b => (
+            <div key={b.id} style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '8px 12px', background: 'var(--surface-2)', borderRadius: 6,
+              border: '1px solid var(--border)',
+            }}>
+              <div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text)', fontFamily: "'JetBrains Mono', monospace" }}>{b.id}</div>
+                <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginTop: 2 }}>{b.created} · {b.size_mb} MB</div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <Btn label="↩ Restaurar" variant="ghost" small
+                  disabled={loading} onClick={() => handleRestore(b.id)} />
+                <Btn
+                  label={reingesting === b.id ? `⏳ ${elapsed}s…` : '⬆ Reingestar'}
+                  variant="purple" small
+                  disabled={loading || reingesting !== null}
+                  onClick={() => handleReingest(b.id)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   )
 }
 
@@ -247,8 +369,8 @@ function SectionSimulador({
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <StatBox label="STEPS"       value={(simStatus?.step_count    ?? 0).toLocaleString()} />
-            <StatBox label="REGISTROS"   value={(simStatus?.total_records ?? 0).toLocaleString()} />
+            <StatBox label="STEPS" value={(simStatus?.step_count ?? 0).toLocaleString()} />
+            <StatBox label="REGISTROS" value={(simStatus?.total_records ?? 0).toLocaleString()} />
             <StatBox label="TASA FALLAS" value={`${simStatus?.fault_rate_pct ?? 0}%`} color='var(--solar)' />
             <StatBox label="FAULT LEVEL" value={`L${simStatus?.config?.fault_level ?? '?'}`} color='#a78bfa' />
           </div>
@@ -259,7 +381,7 @@ function SectionSimulador({
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
             {!simStatus?.running
               ? <Btn label="▶ Start" variant="success" disabled={loading} onClick={() => onAction('/admin/simulator/start')} />
-              : <Btn label="⏸ Stop"  variant="danger"  disabled={loading} onClick={() => onAction('/admin/simulator/stop')} />
+              : <Btn label="⏸ Stop" variant="danger" disabled={loading} onClick={() => onAction('/admin/simulator/stop')} />
             }
             <Btn label="↺ Reset" variant="ghost" disabled={loading || !!simStatus?.running}
               onClick={() => onAction('/admin/simulator/reset', 'DELETE')} />
@@ -284,16 +406,7 @@ function SectionSimulador({
           </div>
         </Card>
 
-        <Card>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text)', marginBottom: 2 }}>solar_stream.csv</div>
-              <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)' }}>Reingesta el backup local al backend</div>
-            </div>
-            <Btn label="⬆ Reingestar CSV" variant="ghost" small
-              onClick={() => onAction('/admin/simulator/reingest', 'POST')} />
-          </div>
-        </Card>
+        <CsvBackupsCard onAction={onAction} loading={loading} />
       </div>
 
       {/* Right: active faults */}
@@ -334,7 +447,7 @@ function SectionSimulador({
                     {f.fault_type.replace(/_/g, ' ')}
                   </span>
                   <div style={{ display: 'flex', gap: 3 }}>
-                    {[1,2,3,4,5].map(n => (
+                    {[1, 2, 3, 4, 5].map(n => (
                       <div key={n} style={{
                         width: 6, height: 6, borderRadius: 1,
                         background: n <= f.severity ? (FAULT_COLORS[f.fault_type] ?? '#6b7f94') : 'var(--border)',
@@ -357,13 +470,13 @@ function SectionSimulador({
 
 // ── Section: Base de Datos ────────────────────────────────────────────────────
 function SectionDB({ onAction, loading }: { onAction: (path: string, method?: string, body?: any) => Promise<void>; loading: boolean }) {
-  const [readings, setReadings]       = useState<DbReading[]>([])
-  const [page, setPage]               = useState(0)
+  const [readings, setReadings] = useState<DbReading[]>([])
+  const [page, setPage] = useState(0)
   const [filterPlant, setFilterPlant] = useState('')
   const [filterFault, setFilterFault] = useState('')
-  const [confirm, setConfirm]         = useState('')
-  const [target, setTarget]           = useState('all')
-  const [fetching, setFetching]       = useState(false)
+  const [confirm, setConfirm] = useState('')
+  const [target, setTarget] = useState('full')
+  const [fetching, setFetching] = useState(false)
 
   const fetchReadings = useCallback(async () => {
     setFetching(true)
@@ -381,7 +494,11 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
 
   const handleTruncate = async () => {
     if (confirm !== 'CONFIRMAR') return
-    await onAction(`/admin/db/truncate/${target}`, 'POST')
+    if (target === 'full') {
+      await onAction('/admin/db/full-reset', 'POST')
+    } else {
+      await onAction(`/admin/db/truncate/${target}`, 'POST')
+    }
     setConfirm('')
     fetchReadings()
   }
@@ -400,8 +517,8 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
         {/* Filters */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
           {([
-            { label: 'Planta', val: filterPlant, set: setFilterPlant, opts: [['','Todas'],['1','P1'],['2','P2'],['3','P3'],['4','P4'],['5','P5'],['6','P6'],['7','P7'],['8','P8']] },
-            { label: 'Falla',  val: filterFault, set: setFilterFault, opts: [['','Todas'],['1','Con falla'],['0','Sin falla']] },
+            { label: 'Planta', val: filterPlant, set: setFilterPlant, opts: [['', 'Todas'], ['1', 'P1'], ['2', 'P2'], ['3', 'P3'], ['4', 'P4'], ['5', 'P5'], ['6', 'P6'], ['7', 'P7'], ['8', 'P8']] },
+            { label: 'Falla', val: filterFault, set: setFilterFault, opts: [['', 'Todas'], ['1', 'Con falla'], ['0', 'Sin falla']] },
           ] as any[]).map(({ label, val, set, opts }) => (
             <select key={label} value={val} onChange={e => { set(e.target.value); setPage(0) }} style={{
               background: 'var(--surface-2)', border: '1px solid var(--border)',
@@ -418,7 +535,7 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem', fontFamily: "'JetBrains Mono', monospace" }}>
             <thead>
               <tr>
-                {['ID','TS','PLANTA','INVERSOR','IRR','T_MOD','P_AC','P_EXP','FALLA','TIPO'].map(h => (
+                {['ID', 'TS', 'PLANTA', 'INVERSOR', 'IRR', 'T_MOD', 'P_AC', 'P_EXP', 'FALLA', 'TIPO'].map(h => (
                   <th key={h} style={{ padding: '7px 10px', textAlign: 'left', color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap', fontSize: '0.58rem', letterSpacing: '0.1em' }}>{h}</th>
                 ))}
               </tr>
@@ -431,7 +548,7 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
               ) : readings.map(r => (
                 <tr key={r.id} style={{ borderBottom: '1px solid rgba(30,45,61,0.5)' }}>
                   <td style={{ padding: '7px 10px', color: 'var(--text-dim)' }}>{r.id}</td>
-                  <td style={{ padding: '7px 10px', color: 'var(--text)', whiteSpace: 'nowrap' }}>{r.ts?.slice(0,16).replace('T',' ')}</td>
+                  <td style={{ padding: '7px 10px', color: 'var(--text)', whiteSpace: 'nowrap' }}>{r.ts?.slice(0, 16).replace('T', ' ')}</td>
                   <td style={{ padding: '7px 10px', color: 'var(--blue)' }}>P{r.plant_id}</td>
                   <td style={{ padding: '7px 10px', color: 'var(--text)' }}>{r.inverter_id}</td>
                   <td style={{ padding: '7px 10px', color: 'var(--text)' }}>{r.irradiance_wm2}</td>
@@ -445,7 +562,7 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
                   </td>
                   <td style={{ padding: '7px 10px' }}>
                     {r.fault_type
-                      ? <span style={{ color: FAULT_COLORS[r.fault_type] ?? 'var(--text)', fontSize: '0.65rem' }}>{r.fault_type.replace(/_/g,' ')}</span>
+                      ? <span style={{ color: FAULT_COLORS[r.fault_type] ?? 'var(--text)', fontSize: '0.65rem' }}>{r.fault_type.replace(/_/g, ' ')}</span>
                       : <span style={{ color: 'var(--border)' }}>—</span>}
                   </td>
                 </tr>
@@ -473,7 +590,8 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
               color: 'var(--text)', padding: '8px 10px', borderRadius: 5,
               fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
             }}>
-              <option value="all">Reset completo (solar_readings CASCADE)</option>
+              <option value="full">⚡ Reset completo (DB + simulador + snapshot CSV)</option>
+              <option value="all">Solo DB (solar_readings CASCADE)</option>
               <option value="predictions">Solo ai_predictions</option>
               <option value="explanations">Solo ai_explanations</option>
             </select>
@@ -501,14 +619,14 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
 
 // ── Section: Modelos ML ───────────────────────────────────────────────────────
 function SectionML({ onAction, loading }: { onAction: (path: string, method?: string, body?: any) => Promise<void>; loading: boolean }) {
-  const [models, setModels]     = useState<ModelStatus[]>([])
-  const [backups, setBackups]   = useState<{ id: string; label: string; size: string }[]>([])
+  const [models, setModels] = useState<ModelStatus[]>([])
+  const [backups, setBackups] = useState<{ id: string; label: string; size: string }[]>([])
   const [retraining, setRetraining] = useState(false)
-  const [log, setLog]           = useState<string[]>([])
+  const [log, setLog] = useState<string[]>([])
 
   useEffect(() => {
-    adminFetch('/admin/ml/status').then(d => setModels(d.models ?? [])).catch(() => {})
-    adminFetch('/admin/ml/backups').then(d => setBackups(d.backups ?? [])).catch(() => {})
+    adminFetch('/admin/ml/status').then(d => setModels(d.models ?? [])).catch(() => { })
+    adminFetch('/admin/ml/backups').then(d => setBackups(d.backups ?? [])).catch(() => { })
   }, [])
 
   const handleRetrain = async () => {
@@ -540,8 +658,8 @@ function SectionML({ onAction, loading }: { onAction: (path: string, method?: st
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-        <Btn label="💾 Backup manual" variant="ghost"  onClick={handleBackup}  disabled={loading} />
-        <Btn label="🧠 Reentrenar"   variant="purple" onClick={handleRetrain} disabled={loading || retraining} />
+        <Btn label="💾 Backup manual" variant="ghost" onClick={handleBackup} disabled={loading} />
+        <Btn label="🧠 Reentrenar" variant="purple" onClick={handleRetrain} disabled={loading || retraining} />
       </div>
 
       {/* Models table */}
@@ -550,7 +668,7 @@ function SectionML({ onAction, loading }: { onAction: (path: string, method?: st
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', fontFamily: "'JetBrains Mono', monospace" }}>
           <thead>
             <tr>
-              {['PLANTA','N','F1 BIN','AUC','MAE kW','F1 TIPO','BACKUP','ACCIONES'].map(h => (
+              {['PLANTA', 'N', 'F1 BIN', 'AUC', 'MAE kW', 'F1 TIPO', 'BACKUP', 'ACCIONES'].map(h => (
                 <th key={h} style={{ padding: '7px 12px', textAlign: 'left', color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', fontSize: '0.58rem', letterSpacing: '0.1em' }}>{h}</th>
               ))}
             </tr>
@@ -641,11 +759,11 @@ function SectionML({ onAction, loading }: { onAction: (path: string, method?: st
 
 // ── Main Control ──────────────────────────────────────────────────────────────
 export default function Control() {
-  const [tab, setTab]             = useState<AdminTab>('sistema')
-  const [loading, setLoading]     = useState(false)
+  const [tab, setTab] = useState<AdminTab>('sistema')
+  const [loading, setLoading] = useState(false)
   const [simStatus, setSimStatus] = useState<SimStatus | null>(null)
-  const [db, setDb]               = useState<DbStats | null>(null)
-  const [faults, setFaults]       = useState<ActiveFault[]>([])
+  const [db, setDb] = useState<DbStats | null>(null)
+  const [faults, setFaults] = useState<ActiveFault[]>([])
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -682,10 +800,10 @@ export default function Control() {
   }
 
   const TABS: { id: AdminTab; label: string; icon: string }[] = [
-    { id: 'sistema',   label: 'SISTEMA',      icon: '◉' },
-    { id: 'simulador', label: 'SIMULADOR',     icon: '⚙' },
-    { id: 'db',        label: 'BASE DE DATOS', icon: '🗄' },
-    { id: 'ml',        label: 'MODELOS ML',    icon: '🧠' },
+    { id: 'sistema', label: 'SISTEMA', icon: '◉' },
+    { id: 'simulador', label: 'SIMULADOR', icon: '⚙' },
+    { id: 'db', label: 'BASE DE DATOS', icon: '🗄' },
+    { id: 'ml', label: 'MODELOS ML', icon: '🧠' },
   ]
 
   return (
@@ -734,10 +852,10 @@ export default function Control() {
           </div>
         </div>
 
-        {tab === 'sistema'   && <SectionSistema   db={db} onAction={onAction} />}
-        {tab === 'simulador' && <SectionSimulador  simStatus={simStatus} faults={faults} onAction={onAction} loading={loading} />}
-        {tab === 'db'        && <SectionDB         onAction={onAction} loading={loading} />}
-        {tab === 'ml'        && <SectionML         onAction={onAction} loading={loading} />}
+        {tab === 'sistema' && <SectionSistema db={db} simStatus={simStatus} onAction={onAction} />}
+        {tab === 'simulador' && <SectionSimulador simStatus={simStatus} faults={faults} onAction={onAction} loading={loading} />}
+        {tab === 'db' && <SectionDB onAction={onAction} loading={loading} />}
+        {tab === 'ml' && <SectionML onAction={onAction} loading={loading} />}
       </div>
     </div>
   )
