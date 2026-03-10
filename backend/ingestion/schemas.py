@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import List
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional
 
 class ReadingIn(BaseModel):
     ts: str
@@ -18,8 +18,22 @@ class ReadingIn(BaseModel):
     energy_total_kwh: float = 0.0
 
     label_is_fault: int = 0
-    fault_type: str = ""
-    fault_severity: int = 0
+    fault_type: Optional[str] = ""
+    fault_severity: Optional[int] = 0
+
+    @field_validator("fault_type", mode="before")
+    @classmethod
+    def coerce_fault_type(cls, v):
+        if v is None or (isinstance(v, float) and v != v):  # NaN check
+            return ""
+        return str(v)
+
+    @field_validator("fault_severity", mode="before")
+    @classmethod
+    def coerce_fault_severity(cls, v):
+        if v is None or (isinstance(v, float) and v != v):
+            return 0
+        return int(v)
 
 
 class BatchIn(BaseModel):

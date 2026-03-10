@@ -178,12 +178,99 @@ def reset_simulator(current_user: dict = Depends(require_admin)):
 
 
 @router.post("/simulator/reingest")
-def reingest_csv(current_user: dict = Depends(require_admin)):
-    """Dispara reingest_csv.py dentro del contenedor del simulador."""
+def reingest_csv(
+    backup_id: Optional[str] = None,
+    current_user: dict = Depends(require_admin),
+):
+    """Dispara reingest_csv.py en el simulador. Si backup_id, reingesta ese snapshot."""
     try:
-        return requests.post(f"{SIMULATOR_URL}/reingest", timeout=10).json()
+        params = f"?backup_id={backup_id}" if backup_id else ""
+        resp = requests.post(f"{SIMULATOR_URL}/reingest{params}", timeout=360)
+        if resp.status_code >= 400:
+            raise HTTPException(resp.status_code, resp.json().get("detail", resp.text[:300]))
+        return resp.json()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"No se pudo contactar el simulador: {e}")
+
+
+@router.get("/simulator/reingest-status")
+def reingest_status(current_user: dict = Depends(require_admin)):
+    """Estado del reingest en background en el simulador."""
+    try:
+        resp = requests.get(f"{SIMULATOR_URL}/reingest/status", timeout=5)
+        return resp.json()
+    except Exception:
+        return {"running": False, "output": "", "error": "No se pudo contactar el simulador"}
+
+
+@router.get("/simulator/csv-backups")
+def list_csv_backups(current_user: dict = Depends(require_admin)):
+    """Lista los snapshots CSV disponibles en el simulador."""
+    try:
+        resp = requests.get(f"{SIMULATOR_URL}/backups", timeout=5)
+        return resp.json()
+    except Exception:
+        return {"backups": []}
+
+
+@router.post("/simulator/csv-backups/{backup_id}/restore")
+def restore_csv_backup(
+    backup_id: str,
+    current_user: dict = Depends(require_admin),
+):
+    """Restaura un snapshot CSV en el simulador."""
+    try:
+        resp = requests.post(f"{SIMULATOR_URL}/backups/{backup_id}/restore", timeout=10)
+        return resp.json()
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo contactar el simulador: {e}")
+
+
+@router.post("/db/full-reset")
+def full_reset(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_admin),
+):
+    """
+    Reset completo del sistema:
+    1. Para el simulador
+    2. Resetea el simulador (hace snapshot CSV -> backups/ automáticamente)
+    3. Trunca toda la DB (solar_readings CASCADE)
+    """
+    errors = []
+
+    # 1. Stop simulator
+    try:
+        requests.post(f"{SIMULATOR_URL}/stop", timeout=5)
+    except Exception:
+        pass  # si ya estaba detenido, no importa
+
+    # 2. Reset simulator (esto hace el snapshot del CSV)
+    backup_id = None
+    try:
+        resp = requests.delete(f"{SIMULATOR_URL}/reset", timeout=10)
+        if resp.status_code == 200:
+            backup_id = resp.json().get("backup_id")
+    except Exception as e:
+        errors.append(f"simulator reset: {e}")
+
+    # 3. Truncate DB
+    try:
+        db.execute(text("TRUNCATE TABLE ai_explanations"))
+        db.execute(text("TRUNCATE TABLE ai_predictions CASCADE"))
+        db.execute(text("TRUNCATE TABLE solar_readings CASCADE"))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        errors.append(f"db truncate: {e}")
+
+    return {
+        "status": "ok" if not errors else "partial",
+        "backup_id": backup_id,
+        "errors": errors,
+    }
 
 
 @router.get("/simulator/faults")
