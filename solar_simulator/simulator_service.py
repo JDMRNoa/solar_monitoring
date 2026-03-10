@@ -374,7 +374,7 @@ async def manual_step(req: StepRequest = StepRequest()):
 
     all_records: List[Dict[str, Any]] = []
     for _ in range(req.n_steps):
-        all_records.extend(_execute_step())
+        all_records.extend(await _execute_step())
 
     _save_state()
     return {
@@ -411,3 +411,45 @@ async def reset():
 
     log.info("Reset completo ejecutado")
     return {"status": "reset", "next_start_ts": START_TS_STR}
+
+@app.get("/faults", tags=["control"])
+def get_active_faults():
+    """Retorna las fallas activas en todos los PlantSimulators."""
+    if GEN.simulator is None:
+        return {"faults": []}
+
+    faults = []
+    for plant_id, sim in GEN.simulator.simulators.items():
+        for f in sim.active_faults:
+            faults.append({
+                "plant_id":   plant_id,
+                "inverter_id": f.params.get("inv_idx", "?"),
+                "fault_type": f.fault_type,
+                "severity":   f.severity,
+                "remaining":  f.remaining,
+            })
+
+    return {"faults": faults}
+
+
+@app.post("/reingest", tags=["control"])
+async def reingest():
+    """Dispara reingest_csv.py para reenviar solar_stream.csv al backend."""
+    import asyncio
+    from pathlib import Path
+
+    script = Path(__file__).parent / "reingest_csv.py"
+    if not script.exists():
+        raise HTTPException(404, "reingest_csv.py no encontrado")
+
+    proc = await asyncio.create_subprocess_exec(
+        "python", str(script),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+
+    if proc.returncode != 0:
+        raise HTTPException(500, stderr.decode()[:500])
+
+    return {"status": "ok", "output": stdout.decode()[-500:]}
