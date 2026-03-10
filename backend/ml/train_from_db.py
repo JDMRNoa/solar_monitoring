@@ -186,7 +186,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
     if len(fault_train) >= MIN_FAULT_ROWS_TYPE and fault_train["fault_type"].nunique() >= 2:
         print(f"  🌲 Clasificador de tipo ({len(fault_train):,} fallas, "
               f"{fault_train['fault_type'].nunique()} clases)...")
-        type_clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, class_weight="balanced")
+        fault_type_clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, class_weight="balanced")
         X_type_train = build_clf_features(fault_train)
         fault_type_clf.fit(X_type_train, fault_train["fault_type"])
         fault_type_classes = fault_type_clf.classes_.tolist()
