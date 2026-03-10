@@ -95,6 +95,7 @@ def build_plant_profiles(n_plants: int, fault_level: int = 2) -> List[PlantProfi
         FaultType.GRID_DISCONNECT:  0.0004,
         FaultType.MPPT_FAILURE:     0.0010,
         FaultType.PARTIAL_SHADING:  0.0020,
+        FaultType.PID_EFFECT:       0.0004,   # bajo — es crónico pero puntual
     }
 
     def scaled(multiplier: float = 1.0) -> Dict[str, float]:
@@ -446,6 +447,9 @@ class FaultManager:
             params["complete"] = bool(self.rng.random() < 0.4)
             if not params["complete"]:
                 params["inv_idx"] = int(self.rng.integers(1, self.p.inverter_count + 1))
+        elif ft == FaultType.PID_EFFECT:
+            params["inv_idx"] = int(self.rng.integers(1, self.p.inverter_count + 1))
+            params["pid_loss"] = float(self.rng.uniform(0.08, 0.25))
         self.active_faults.append(FaultEvent(ft, severity, duration, duration, params))
 
     def apply(self, inv_idx: int, p_dc: float, p_ac: float) -> Tuple[float, float, str, int]:
@@ -492,7 +496,12 @@ class FaultManager:
             p_dc = p_dc * max(0.1, 1 - shade * 1.3)
             p_ac = p_ac * max(0.1, 1 - shade * 1.1)
         elif ft == FaultType.GRID_DISCONNECT:
-            p_ac = 0.0 if fault.params.get("complete") else p_ac * 0.1
+            # Completa o parcial: el inversor afectado queda sin producción
+            p_ac = 0.0
+        elif ft == FaultType.PID_EFFECT:
+            loss = fault.params.get("pid_loss", 0.12)
+            p_dc *= (1 - loss)
+            p_ac *= (1 - loss * 0.9)
 
         return max(0.0, p_dc), max(0.0, p_ac), ft.value, fault.severity
 
@@ -557,8 +566,9 @@ class PlantSimulator:
             p_ac_i = max(0.0, base_ac + float(self.rng.normal(0, max(0.02, base_ac * 0.005))))
             p_dc_i = max(p_ac_i, base_dc + float(self.rng.normal(0, max(0.01, base_dc * 0.003))))
 
-            # expected_power: potencia normal sin fallas de evento
-            expected_ac = round(p_ac_i, 4)
+            # expected_power: potencia base limpia (sin ruido individual ni fallas)
+            # Usar base_ac garantiza que el residual ML tenga señal real cuando hay falla
+            expected_ac = round(base_ac, 4)
 
             p_dc_f, p_ac_f, fault_type, fault_sev = self.faults.apply(inv_idx, p_dc_i, p_ac_i)
             label_is_fault = 1 if fault_type else 0
