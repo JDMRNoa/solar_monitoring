@@ -130,7 +130,7 @@ interface DashboardProps {
 
 export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlantChange }: DashboardProps) {
   const [plantId, setPlantId]         = useState(initialPlantId)
-  const [hours, setHours]             = useState(11000)
+  const [hours, setHours]             = useState(12)
   const [thresholds, setThresholds]   = useState<PlantThresholds>({})
   const [state, setState]             = useState<LoadState>('idle')
   const [error, setError]             = useState<string | null>(null)
@@ -200,6 +200,7 @@ export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlant
         <Select
           label="PERÍODO" value={hours}
           options={[
+            { label: '12 h',    value: 12    },
             { label: '24 h',    value: 24    },
             { label: '48 h',    value: 48    },
             { label: '7 días',  value: 168   },
