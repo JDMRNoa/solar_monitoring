@@ -6,3 +6,12 @@ build/
 *.joblib
 backend/ml/artifacts/*.joblib
 .gitignore
+.agent
+
+# Runtime / generated del simulador
+solar_simulator/output/solar_stream.csv
+solar_simulator/output/simulator_state.json
+
+# Backups dinámicos (conservar solo el inicial)
+solar_simulator/output/backups/*.csv
+!solar_simulator/output/backups/solar_stream_initial_backup.csv
