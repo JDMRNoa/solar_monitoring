@@ -187,7 +187,14 @@ def predict_batch(df: pd.DataFrame) -> list[dict]:
 
         # 2. Clasificador binario
         X_clf      = build_clf_features(df_p)[clf_features]
-        fault_proba = clf.predict_proba(X_clf)[:, 1]
+        probas     = clf.predict_proba(X_clf)
+        if probas.shape[1] > 1:
+            fault_proba = probas[:, 1]
+        else:
+            # Caso borde: el modelo solo vio una clase en entrenamiento (e.g., sin fallas)
+            single_class = clf.classes_[0]
+            fault_proba = np.ones(len(df_p)) if single_class == 1 else np.zeros(len(df_p))
+        
         fault_pred  = (fault_proba >= 0.65).astype(int)
 
         # 3. Clasificador de tipo (solo fallas predichas)

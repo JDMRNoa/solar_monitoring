@@ -70,6 +70,11 @@ def ingest_batch_service(payload, db: Session) -> Dict[str, Any]:
         }
 
     reading_ids = insert_batch_readings(db, readings)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise RuntimeError(f"Failed to commit readings: {e}")
 
     df = pd.DataFrame(readings)
 

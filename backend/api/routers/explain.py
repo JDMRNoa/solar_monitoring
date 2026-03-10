@@ -293,6 +293,8 @@ def _already_explained(db: Session, prediction_id: int) -> Dict | None:
             e.top_reasons,
             e.explanation_text,
             p.fault_proba,
+            p.fault_type_pred,
+            p.fault_type_proba,
             s.expected_value
         FROM ai_explanations e
         JOIN ai_predictions p ON p.id = e.prediction_id
@@ -376,12 +378,12 @@ def explain_prediction(
         reading      = context_rows[-1] if context_rows else {}
 
         fault_type_result = None
-        if reading and reading.get("fault_type_pred"):
+        if cached_data.get("fault_type_pred"):
             fault_type_result = {
-                "fault_type": reading["fault_type_pred"],
-                "confidence": reading.get("fault_type_proba"),
+                "fault_type": cached_data["fault_type_pred"],
+                "confidence": cached_data.get("fault_type_proba"),
             }
-        else:
+        elif reading:
             inferred = _infer_fault_type_rules(top_reasons, reading)
             fault_type_result = {"fault_type": inferred}
 

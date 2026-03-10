@@ -18,7 +18,7 @@ def get_capacity(plant_id) -> float:
         pid = int(plant_id)
         cap = PLANT_CAPACITY_KW.get(pid, DEFAULT_CAPACITY_KW)
         inv = PLANT_INVERTER_COUNT.get(pid, DEFAULT_INVERTER_COUNT)
-        return cap / inv
+        return cap / inv  # Capacidad por inversor (para ML de registros individuales)
     except Exception:
         return DEFAULT_CAPACITY_KW / DEFAULT_INVERTER_COUNT
 
@@ -26,9 +26,12 @@ def get_capacity(plant_id) -> float:
 # ── Utilidades internas ───────────────────────────────────────────────────────
 
 def _add_time_parts(df: pd.DataFrame) -> pd.DataFrame:
-    ts = pd.to_datetime(df["ts"])
-    df["hour"]   = ts.dt.hour
-    df["minute"] = ts.dt.minute
+    # Asegurar que ts sea datetime y manejar tanto formatos naive como UTC
+    ts = pd.to_datetime(df["ts"], utc=True)
+    # Convertir a hora de Colombia (el contexto en el que se entrenaron los modelos)
+    ts_local = ts.dt.tz_convert("America/Bogota")
+    df["hour"]   = ts_local.dt.hour
+    df["minute"] = ts_local.dt.minute
     return df
 
 

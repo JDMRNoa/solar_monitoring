@@ -149,11 +149,22 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
     clf.fit(X_clf_train, train_df["label_is_fault"])
 
     clf_pred  = clf.predict(X_clf_test)
-    clf_proba = clf.predict_proba(X_clf_test)[:, 1]
+    if len(clf.classes_) == 2:
+        clf_proba = clf.predict_proba(X_clf_test)[:, 1]
+    else:
+        v = 1.0 if clf.classes_[0] == 1 else 0.0
+        clf_proba = np.full(len(X_clf_test), v)
+
     acc  = accuracy_score(test_df["label_is_fault"], clf_pred)
     f1   = f1_score(test_df["label_is_fault"], clf_pred, zero_division=0)
-    auc  = roc_auc_score(test_df["label_is_fault"], clf_proba)
-    cm   = confusion_matrix(test_df["label_is_fault"], clf_pred)
+    try:
+        if len(np.unique(test_df["label_is_fault"])) > 1:
+            auc = roc_auc_score(test_df["label_is_fault"], clf_proba)
+        else:
+            auc = 0.5
+    except Exception:
+        auc = 0.5
+        
     print(f"     Acc: {acc:.4f}  F1: {f1:.4f}  AUC: {auc:.4f}")
 
     # ── Clasificador de tipo ──────────────────────────────────────────────────
@@ -175,9 +186,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
     if len(fault_train) >= MIN_FAULT_ROWS_TYPE and fault_train["fault_type"].nunique() >= 2:
         print(f"  🌲 Clasificador de tipo ({len(fault_train):,} fallas, "
               f"{fault_train['fault_type'].nunique()} clases)...")
-        fault_type_clf = RandomForestClassifier(
-            n_estimators=200, random_state=42, n_jobs=-1, class_weight="balanced",
-        )
+        type_clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, class_weight="balanced")
         X_type_train = build_clf_features(fault_train)
         fault_type_clf.fit(X_type_train, fault_train["fault_type"])
         fault_type_classes = fault_type_clf.classes_.tolist()
@@ -244,11 +253,11 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
         "n_samples":           len(df_plant),
         "n_train":             len(train_df),
         "n_test":              len(test_df),
-        "regression_mae":      round(float(reg_mae), 4),
-        "accuracy":            round(float(acc), 4),
-        "f1":                  round(float(f1), 4),
-        "roc_auc":             round(float(auc), 4),
-        "confusion_matrix":    cm.tolist(),
+        "regression_mae":      float(f"{reg_mae:.4f}"),
+        "accuracy":            float(f"{acc:.4f}"),
+        "f1":                  float(f"{f1:.4f}"),
+        "roc_auc":             float(f"{auc:.4f}") if not np.isnan(auc) else 0.5,
+        "confusion_matrix":    confusion_matrix(test_df["label_is_fault"], clf_pred).tolist(),
         "classification_report": classification_report(
             test_df["label_is_fault"], clf_pred,
             output_dict=True, zero_division=0,
@@ -341,14 +350,14 @@ def _weighted_summary(metrics: dict[int, dict]) -> dict:
         return {}
 
     def wavg(key):
-        return sum(m[key] * m["n_samples"] for m in metrics.values()) / total
+        return float(sum(m[key] * m["n_samples"] for m in metrics.values()) / total)
 
     return {
         "total_samples":  total,
-        "weighted_mae":   round(wavg("regression_mae"), 4),
-        "weighted_acc":   round(wavg("accuracy"), 4),
-        "weighted_f1":    round(wavg("f1"), 4),
-        "weighted_auc":   round(wavg("roc_auc"), 4),
+        "weighted_mae":   float(f"{wavg('regression_mae'):.4f}"),
+        "weighted_acc":   float(f"{wavg('accuracy'):.4f}"),
+        "weighted_f1":    float(f"{wavg('f1'):.4f}"),
+        "weighted_auc":   float(f"{wavg('roc_auc'):.4f}"),
     }
 
 
