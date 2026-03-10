@@ -3,6 +3,7 @@
   "inverter_derate",
   "mppt_failure",
   "partial_shading",
+  "pid_effect",
   "sensor_flatline",
   "string_fault"
 ]
