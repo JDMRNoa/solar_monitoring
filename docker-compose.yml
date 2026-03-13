@@ -97,6 +97,14 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token eyJhIjoiYzcwYjZhNWJjMDFlYjI1N2U2OGVhMzA4ODJmZTI3M2MiLCJzIjoiWVRnM1ptUm1PV1l0T0dJM015MDBOVEptTFdKak56WXRNemN3Tm1ZMk5UUXpOalJtIiwidCI6IjAwOGRkNDI3LWIwNTEtNGUxNi1iMWUyLWM2NTdkMjg3NzM5NCJ9
+    depends_on:
+      - frontend
+
 volumes:
   postgres_data:
   ollama_data:
