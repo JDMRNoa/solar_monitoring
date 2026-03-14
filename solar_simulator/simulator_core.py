@@ -21,9 +21,9 @@ import numpy as np
 import pandas as pd
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Tipos de falla
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 class FaultType(str, Enum):
     NONE            = ""
@@ -46,9 +46,9 @@ class FaultEvent:
     params: Dict[str, Any] = field(default_factory=dict)
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Perfil de planta
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 @dataclass
 class PlantProfile:
@@ -187,9 +187,9 @@ def build_plant_profiles(n_plants: int, fault_level: int = 2) -> List[PlantProfi
     return templates[:min(n_plants, len(templates))]
 
 
-# ─────────────────────────────────────────────────────────────────
-#  Motor de física solar
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
+#  Motor de fisica solar
+# -----------------------------------------------------------------
 
 class SolarPhysicsEngine:
     NOCT = 45.0
@@ -290,9 +290,9 @@ class SolarPhysicsEngine:
         return max(0.0, min(p_dc * eff, cap))
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Simulador de clima (O-U)
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 class WeatherSimulator:
 
@@ -340,9 +340,9 @@ class WeatherSimulator:
         return self.cloud_cover, t_ambient, self.wind_ms, self.rain_active, dust_event, rain_cleaning
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Gestor de fallas
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 class FaultManager:
 
@@ -373,7 +373,7 @@ class FaultManager:
         hour = dt.hour
         self._step_count += 1
 
-        # ── Suciedad acumulativa ──────────────────────────────────
+        # --- Suciedad acumulativa ----------------------------------
         if 8 <= hour <= 17 and not rain_active:
             self.soiling = min(1.0, self.soiling + (0.006 if dust_event else 0.0002))
 
@@ -381,7 +381,7 @@ class FaultManager:
         if rain_active:
             self.soiling = max(0.0, self.soiling - rain_cleaning * 0.12)
 
-        # ── Limpieza programada (mantenimiento humano) ────────────
+        # --- Limpieza programada (mantenimiento humano) ------------
         # 1. REACTIVA: panel_soiling detectado → limpiar en 7–15 días
         if self.soiling > 0.15 and self._scheduled_cleaning_step == -1:
             days = int(self.rng.integers(7, 16))   # 7–15 días
@@ -398,7 +398,7 @@ class FaultManager:
             self.soiling = max(0.01, self.soiling * 0.15)
             self._scheduled_cleaning_step = -1
 
-        # ── Degradación PID crónica ───────────────────────────────
+        # --- Degradacion PID cronica -------------------------------
 
         self.degradation_pct = min(15.0, self.degradation_pct + 0.000015)
 
@@ -506,9 +506,9 @@ class FaultManager:
         return max(0.0, p_dc), max(0.0, p_ac), ft.value, fault.severity
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Simulador de planta individual
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 class PlantSimulator:
 
@@ -606,9 +606,9 @@ class PlantSimulator:
         return records
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Multi-planta
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 class MultiPlantSimulator:
 
@@ -633,9 +633,9 @@ class MultiPlantSimulator:
         return pd.DataFrame(records)
 
 
-# ─────────────────────────────────────────────────────────────────
-#  Test rápido
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
+#  Test rapido
+# -----------------------------------------------------------------
 
 if __name__ == "__main__":
     profiles = build_plant_profiles(4, fault_level=2)

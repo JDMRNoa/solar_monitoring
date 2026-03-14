@@ -45,9 +45,9 @@ from pydantic import BaseModel
 
 from simulator_core import MultiPlantSimulator, build_plant_profiles
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Logging
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,9 +56,9 @@ logging.basicConfig(
 log = logging.getLogger("simulator_service")
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Config desde env
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 OUTPUT_DIR      = Path(os.getenv("SOLAR_OUTPUT_DIR", "./output"))
 API_URL         = os.getenv("SOLAR_API_URL", "")
@@ -77,9 +77,9 @@ BACKUPS_DIR     = OUTPUT_DIR / "backups"
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Estado global
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 class GeneratorState:
     def __init__(self):
@@ -122,9 +122,9 @@ class GeneratorState:
 GEN = GeneratorState()
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Helpers
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 def _sanitize(rec: Dict[str, Any]) -> Dict[str, Any]:
     """Quita _meta, limpia NaN/Inf, garantiza tipos API-safe."""
@@ -184,9 +184,9 @@ def _post_to_api(records: List[Dict[str, Any]]) -> bool:
     return False
 
 
-# ─────────────────────────────────────────────────────────────────
-#  Un paso de generación
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
+#  Un paso de generacion
+# -----------------------------------------------------------------
 
 async def _execute_step() -> List[Dict[str, Any]]:
     raw = GEN.simulator.step_all()
@@ -210,12 +210,12 @@ async def _execute_step() -> List[Dict[str, Any]]:
     return clean
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Background loop (asyncio)
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 async def _generation_loop():
-    log.info("▶ Generación arrancada — delay=%.1fs plantas=%d fault_level=%d",
+    log.info("Generacion arrancada - delay=%.1fs plantas=%d fault_level=%d",
              STEP_DELAY_S, N_PLANTS, FAULT_LEVEL)
     while GEN.running:
         try:
@@ -232,7 +232,7 @@ async def _generation_loop():
 
         await asyncio.sleep(STEP_DELAY_S)
 
-    log.info("⏹ Generación detenida. steps=%d records=%d", GEN.step_count, GEN.total_records)
+    log.info("Generacion detenida. steps=%d records=%d", GEN.step_count, GEN.total_records)
     _save_state()
 
 
@@ -243,9 +243,9 @@ def _build_simulator(start_ts: Optional[str] = None) -> MultiPlantSimulator:
     return MultiPlantSimulator(profiles, start_ts=ts)
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  Lifespan
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -279,22 +279,22 @@ async def lifespan(app: FastAPI):
     log.info("Servicio detenido limpiamente.")
 
 
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 #  FastAPI app
-# ─────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------
 
 app = FastAPI(
     title="Solar Simulator Service",
     description=(
-        "Genera datos sintéticos de plantas fotovoltaicas hacia CSV y/o API.\n\n"
-        "El contenedor arranca **detenido**. Usa `/start` para comenzar y `/stop` para pausar."
+        "Genera datos sinteticos de plantas fotovoltaicas hacia CSV y/o API.\n\n"
+        "El contenedor arranca detenido. Usa /start para comenzar y /stop para pausar."
     ),
     version="2.0.0",
     lifespan=lifespan,
 )
 
 
-# ── Schemas ─────────────────────────────────────────────────────
+# --- Schemas -----------------------------------------------------
 
 class StartRequest(BaseModel):
     start_ts: Optional[str] = None   # Sobreescribe checkpoint
@@ -304,7 +304,7 @@ class StepRequest(BaseModel):
     n_steps: int = 1                  # 1 – 10 000
 
 
-# ── Endpoints ────────────────────────────────────────────────────
+# --- Endpoints ---------------------------------------------------
 
 @app.get("/health", tags=["control"])
 def health():

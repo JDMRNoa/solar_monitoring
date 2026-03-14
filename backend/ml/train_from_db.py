@@ -118,7 +118,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
     test_df  = df_plant.iloc[cut:].copy()
 
     # ── Regresor ──────────────────────────────────────────────────────────────
-    print(f"  🌲 Regresor...")
+    print(f"  REGRESOR...")
     reg = RandomForestRegressor(
         n_estimators=200, max_depth=None, random_state=42, n_jobs=-1,
     )
@@ -140,7 +140,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
     test_df  = enrich(test_df,  X_reg_test)
 
     # ── Clasificador binario ──────────────────────────────────────────────────
-    print(f"  🌲 Clasificador binario...")
+    print(f"  CLASIFICADOR BINARIO...")
     clf = RandomForestClassifier(
         n_estimators=200, random_state=42, n_jobs=-1, class_weight="balanced",
     )
@@ -184,7 +184,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
     fault_type_classes = []
 
     if len(fault_train) >= MIN_FAULT_ROWS_TYPE and fault_train["fault_type"].nunique() >= 2:
-        print(f"  🌲 Clasificador de tipo ({len(fault_train):,} fallas, "
+        print(f"  CLASIFICADOR DE TIPO ({len(fault_train):,} fallas, "
               f"{fault_train['fault_type'].nunique()} clases)...")
         fault_type_clf = RandomForestClassifier(n_estimators=200, random_state=42, n_jobs=-1, class_weight="balanced")
         X_type_train = build_clf_features(fault_train)
@@ -212,7 +212,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
             print(f"     Acc: {type_acc:.4f}  F1: {type_f1:.4f}  "
                   f"Clases: {fault_type_classes}")
     else:
-        print(f"  ⚠  Clasificador de tipo omitido "
+        print(f"  ADVERTENCIA  Clasificador de tipo omitido "
               f"({len(fault_train)} fallas, "
               f"{fault_train['fault_type'].nunique() if len(fault_train) else 0} clases)")
 
@@ -231,7 +231,7 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
             artifact_path("shap_explainer", plant_id),
         )
     except Exception as e:
-        print(f"  ⚠  SHAP: {e}")
+        print(f"  ADVERTENCIA  SHAP: {e}")
 
     # ── Guardar artefactos ────────────────────────────────────────────────────
     joblib.dump(reg, artifact_path("phys_reg", plant_id))
@@ -283,11 +283,11 @@ def train_plant(plant_id: int, df_plant: pd.DataFrame) -> dict:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def train():
-    print("🔄 Cargando datos...")
+    print("RECARGANDO DATOS...")
     df = load_training_data()
 
     plant_ids = sorted(df["plant_id"].unique())
-    print(f"\n🏭 Plantas a entrenar: {plant_ids}")
+    print(f"\nPLANTAS A ENTRENAR: {plant_ids}")
 
     all_metrics: dict[int, dict] = {}
     skipped: list[int] = []
@@ -296,7 +296,7 @@ def train():
         df_plant = df[df["plant_id"] == pid].copy()
 
         if len(df_plant) < MIN_ROWS_PER_PLANT:
-            print(f"\n⚠  Planta {pid}: solo {len(df_plant)} registros "
+            print(f"\nADVERTENCIA  Planta {pid}: solo {len(df_plant)} registros "
                   f"(mínimo {MIN_ROWS_PER_PLANT}) — omitida")
             skipped.append(pid)
             continue
@@ -328,7 +328,7 @@ def train():
 
     # ── Reporte final ─────────────────────────────────────────────────────────
     print(f"\n{'='*60}")
-    print(f"✅ Entrenamiento completo")
+    print(f"ENTRENAMIENTO COMPLETO")
     print(f"   Plantas entrenadas : {list(all_metrics.keys())}")
     if skipped:
         print(f"   Plantas omitidas   : {skipped} (datos insuficientes)")

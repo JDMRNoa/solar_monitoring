@@ -32,22 +32,22 @@ function fmtDur(min: number) {
 
 const FAULT_COLORS: Record<string, string> = {
   inverter_derate: '#f59e0b',
-  string_fault:    '#f85149',
+  string_fault: '#f85149',
   grid_disconnect: '#ef4444',
-  mppt_failure:    '#fb923c',
+  mppt_failure: '#fb923c',
   partial_shading: '#60a5fa',
-  panel_soiling:   '#a78bfa',
-  pid_effect:      '#e879f9',
+  panel_soiling: '#a78bfa',
+  pid_effect: '#e879f9',
   sensor_flatline: '#94a3b8',
 }
 const FAULT_LABELS: Record<string, string> = {
   inverter_derate: 'Inverter Derate',
-  string_fault:    'String Fault',
+  string_fault: 'String Fault',
   grid_disconnect: 'Grid Disconnect',
-  mppt_failure:    'MPPT Failure',
+  mppt_failure: 'MPPT Failure',
   partial_shading: 'Partial Shading',
-  panel_soiling:   'Panel Soiling',
-  pid_effect:      'PID Effect',
+  panel_soiling: 'Panel Soiling',
+  pid_effect: 'PID Effect',
   sensor_flatline: 'Sensor Flatline',
 }
 
@@ -77,8 +77,8 @@ function FaultBadge({ type, confidence }: { type: string | null; confidence?: nu
 // ── SHAP Bar ──────────────────────────────────────────────────────────────────
 
 function ShapBar({ feature, value, maxAbs }: { feature: string; value: number; maxAbs: number }) {
-  const pct   = Math.abs(value) / maxAbs * 100
-  const pos   = value > 0
+  const pct = Math.abs(value) / maxAbs * 100
+  const pos = value > 0
   const color = pos ? '#f85149' : '#3fb950'
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 60px', gap: '8px', alignItems: 'center', marginBottom: '5px' }}>
@@ -97,9 +97,9 @@ function ShapBar({ feature, value, maxAbs }: { feature: string; value: number; m
 // ── XAI Drawer ────────────────────────────────────────────────────────────────
 
 function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void }) {
-  const [state, setState]   = useState<'loading' | 'success' | 'error'>('loading')
+  const [state, setState] = useState<'loading' | 'success' | 'error'>('loading')
   const [result, setResult] = useState<ExplainResult | null>(null)
-  const [error, setError]   = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchExplain(pkg.representative_id)
@@ -107,8 +107,8 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
       .catch(e => { setError(e.message); setState('error') })
   }, [pkg.representative_id])
 
-  const maxAbs     = result ? Math.max(...Object.values(result.top_reasons).map(Math.abs), 0.001) : 1
-  const fc         = result?.inferred_fault_type ? (FAULT_COLORS[result.inferred_fault_type] ?? '#6b7f94') : '#6b7f94'
+  const maxAbs = result ? Math.max(...Object.values(result.top_reasons).map(Math.abs), 0.001) : 1
+  const fc = result?.inferred_fault_type ? (FAULT_COLORS[result.inferred_fault_type] ?? '#6b7f94') : '#6b7f94'
 
   return (
     <>
@@ -153,9 +153,9 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
               {/* Métricas */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                 {[
-                  { label: 'MÁX. PROB.',  value: result.fault_proba != null ? safePct(result.fault_proba) : '—', color: (result.fault_proba ?? 0) > 0.8 ? '#f85149' : '#f59e0b' },
-                  { label: 'LECTURAS',    value: String(pkg.reading_count), color: '#f59e0b', sub: 'consecutivas' },
-                  { label: 'DURACIÓN',    value: pkg.duration_minutes > 0 ? fmtDur(pkg.duration_minutes) : '—', color: '#fff' },
+                  { label: 'MÁX. PROB.', value: result.fault_proba != null ? safePct(result.fault_proba) : '—', color: (result.fault_proba ?? 0) > 0.8 ? '#f85149' : '#f59e0b' },
+                  { label: 'LECTURAS', value: String(pkg.reading_count), color: '#f59e0b', sub: 'consecutivas' },
+                  { label: 'DURACIÓN', value: pkg.duration_minutes > 0 ? fmtDur(pkg.duration_minutes) : '—', color: '#fff' },
                 ].map(m => (
                   <div key={m.label} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px' }}>
                     <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>{m.label}</p>
@@ -191,7 +191,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
               {/* Análisis */}
               {result.analysis_text && (
                 <div style={{ background: 'rgba(88,166,255,0.05)', border: '1px solid rgba(88,166,255,0.2)', borderRadius: '6px', padding: '12px 14px' }}>
-                  <p style={{ fontSize: '0.6rem', color: '#58a6ff', letterSpacing: '0.08em', margin: '0 0 6px' }}>🔍 ANÁLISIS</p>
+                  <p style={{ fontSize: '0.6rem', color: '#58a6ff', letterSpacing: '0.08em', margin: '0 0 6px' }}>ANÁLISIS</p>
                   <p style={{ fontSize: '0.72rem', color: 'var(--text)', lineHeight: 1.6, margin: 0 }}>{result.analysis_text}</p>
                 </div>
               )}
@@ -199,7 +199,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
               {/* Recomendación */}
               {result.recommendation_text && (
                 <div style={{ background: 'rgba(63,185,80,0.05)', border: '1px solid rgba(63,185,80,0.25)', borderRadius: '6px', padding: '12px 14px' }}>
-                  <p style={{ fontSize: '0.6rem', color: '#3fb950', letterSpacing: '0.08em', margin: '0 0 6px' }}>⚡ RECOMENDACIÓN</p>
+                  <p style={{ fontSize: '0.6rem', color: '#3fb950', letterSpacing: '0.08em', margin: '0 0 6px' }}>RECOMENDACIÓN</p>
                   <p style={{ fontSize: '0.72rem', color: 'var(--text)', lineHeight: 1.6, margin: 0 }}>{result.recommendation_text}</p>
                 </div>
               )}
@@ -229,7 +229,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
 
 function PackageRow({ pkg, onExplain }: { pkg: FaultPackage; onExplain: (p: FaultPackage) => void }) {
   const isPoint = pkg.start_ts === pkg.end_ts || pkg.duration_minutes === 0
-  const color   = probaColor(pkg.max_fault_proba)
+  const color = probaColor(pkg.max_fault_proba)
 
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -260,7 +260,7 @@ function PackageRow({ pkg, onExplain }: { pkg: FaultPackage; onExplain: (p: Faul
           onClick={() => onExplain(pkg)}
           style={{ background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.3)', color: '#58a6ff', borderRadius: '3px', padding: '3px 10px', fontSize: '0.62rem', fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer', letterSpacing: '0.05em' }}
         >
-          XAI ›
+          XAI
         </button>
       </td>
     </tr>
@@ -272,7 +272,7 @@ function PackageRow({ pkg, onExplain }: { pkg: FaultPackage; onExplain: (p: Faul
 interface Props { packages: FaultPackage[] }
 
 export default function AlertsTable({ packages }: Props) {
-  const [active, setActive]     = useState<FaultPackage | null>(null)
+  const [active, setActive] = useState<FaultPackage | null>(null)
   const [expanded, setExpanded] = useState(false)
 
   if (!packages || packages.length === 0) {
@@ -284,8 +284,8 @@ export default function AlertsTable({ packages }: Props) {
   }
 
   const totalReadings = packages.reduce((s, p) => s + p.reading_count, 0)
-  const visible       = expanded ? packages : packages.slice(0, INITIAL_ROWS)
-  const hidden        = packages.length - INITIAL_ROWS
+  const visible = expanded ? packages : packages.slice(0, INITIAL_ROWS)
+  const hidden = packages.length - INITIAL_ROWS
 
   return (
     <>
@@ -336,7 +336,7 @@ export default function AlertsTable({ packages }: Props) {
               onClick={() => setExpanded(e => !e)}
               style={{ background: 'transparent', border: '1px solid var(--border)', color: '#58a6ff', borderRadius: '4px', padding: '4px 14px', fontSize: '0.65rem', fontFamily: 'JetBrains Mono, monospace', cursor: 'pointer', letterSpacing: '0.05em' }}
             >
-              {expanded ? '▲ Ver menos' : `▼ Ver ${hidden} más`}
+              {expanded ? 'Ver menos' : `Ver ${hidden} más`}
             </button>
           </div>
         )}

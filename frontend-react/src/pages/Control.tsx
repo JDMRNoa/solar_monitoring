@@ -226,8 +226,37 @@ function SectionSistema({
       <Card>
         <SectionLabel>ACCIONES RÁPIDAS</SectionLabel>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Btn label="🧠 Reentrenar ML" variant="purple" onClick={() => onAction('/admin/ml/retrain', 'POST')} />
-          <Btn label="⬇ Export DB → CSV" variant="ghost" onClick={() => onAction('/admin/db/export', 'POST')} />
+          <button
+            onClick={() => onAction('/admin/ml/retrain', 'POST')}
+            style={{
+              background: 'transparent', color: '#a78bfa', border: '1px solid #a78bfa',
+              padding: '8px 16px', borderRadius: 5, cursor: 'pointer',
+              fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '0.05em', fontWeight: 600, transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: '8px'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .52 8.242 4.42 4.42 0 0 0 8.71 0 4 4 0 0 0 .52-8.242 4 4 0 0 0-2.526-5.77A3 3 0 0 0 12 5" />
+              <path d="M9 13h4" /><path d="M12 10v6" />
+            </svg>
+            REENTRENAR ML
+          </button>
+          <button
+            onClick={() => onAction('/admin/db/export', 'POST')}
+            style={{
+              background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)',
+              padding: '8px 16px', borderRadius: 5, cursor: 'pointer',
+              fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '0.05em', fontWeight: 600, transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: '8px'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
+            EXPORT DB → CSV
+          </button>
         </div>
       </Card>
     </div>
@@ -298,10 +327,30 @@ function CsvBackupsCard({ onAction, loading }: { onAction: (path: string, method
               {reingestMsg}
             </span>
           )}
-          <Btn label="↺" variant="ghost" small onClick={fetchBackups} />
-          <Btn label={reingesting === 'active' ? `⏳ ${elapsed}s…` : '⬆ Reingestar activo'} variant="ghost" small
+          <Btn label="REFRESH" variant="ghost" small onClick={fetchBackups} />
+          <button
             disabled={loading || reingesting !== null}
-            onClick={() => handleReingest()} />
+            onClick={() => handleReingest()}
+            style={{
+              background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)',
+              padding: '5px 10px', borderRadius: 5, cursor: (loading || reingesting !== null) ? 'not-allowed' : 'pointer',
+              fontSize: '0.68rem', fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '0.05em', fontWeight: 600, opacity: (loading || reingesting !== null) ? 0.4 : 1, transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', gap: '6px'
+            }}
+          >
+            {reingesting === 'active' ? (
+              <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                <path d="M12 2a10 10 0 0 1 10 10" />
+              </svg>
+            ) : (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" />
+              </svg>
+            )}
+            {reingesting === 'active' ? `${elapsed}s…` : 'REINGESTAR ACTIVO'}
+          </button>
         </div>
       </div>
 
@@ -322,13 +371,31 @@ function CsvBackupsCard({ onAction, loading }: { onAction: (path: string, method
                 <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginTop: 2 }}>{b.created} · {b.size_mb} MB</div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <Btn label="↩ Restaurar" variant="ghost" small
+                <Btn label="RESTAURAR" variant="ghost" small
                   disabled={loading} onClick={() => handleRestore(b.id)} />
-                <Btn
-                  label={reingesting === b.id ? `⏳ ${elapsed}s…` : '⬆ Reingestar'}
-                  variant="purple" small
+                <button
                   disabled={loading || reingesting !== null}
-                  onClick={() => handleReingest(b.id)} />
+                  onClick={() => handleReingest(b.id)}
+                  style={{
+                    background: 'transparent', color: '#a78bfa', border: '1px solid #a78bfa',
+                    padding: '5px 10px', borderRadius: 5, cursor: (loading || reingesting !== null) ? 'not-allowed' : 'pointer',
+                    fontSize: '0.68rem', fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: '0.05em', fontWeight: 600, opacity: (loading || reingesting !== null) ? 0.4 : 1, transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
+                  {reingesting === b.id ? (
+                    <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+                      <path d="M12 2a10 10 0 0 1 10 10" />
+                    </svg>
+                  ) : (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" x2="12" y1="3" y2="15" />
+                    </svg>
+                  )}
+                  {reingesting === b.id ? `${elapsed}s…` : 'REINGESTAR'}
+                </button>
               </div>
             </div>
           ))}
@@ -380,11 +447,58 @@ function SectionSimulador({
           <SectionLabel>CONTROLES</SectionLabel>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
             {!simStatus?.running
-              ? <Btn label="▶ Start" variant="success" disabled={loading} onClick={() => onAction('/admin/simulator/start')} />
-              : <Btn label="⏸ Stop" variant="danger" disabled={loading} onClick={() => onAction('/admin/simulator/stop')} />
+              ? (
+                <button
+                  disabled={loading}
+                  onClick={() => onAction('/admin/simulator/start')}
+                  style={{
+                    background: 'transparent', color: 'var(--green)', border: '1px solid var(--green)',
+                    padding: '8px 16px', borderRadius: 5, cursor: loading ? 'not-allowed' : 'pointer',
+                    fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: '0.05em', fontWeight: 600, opacity: loading ? 0.4 : 1, transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: '8px'
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  START
+                </button>
+              ) : (
+                <button
+                  disabled={loading}
+                  onClick={() => onAction('/admin/simulator/stop')}
+                  style={{
+                    background: 'transparent', color: 'var(--red)', border: '1px solid var(--red)',
+                    padding: '8px 16px', borderRadius: 5, cursor: loading ? 'not-allowed' : 'pointer',
+                    fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: '0.05em', fontWeight: 600, opacity: loading ? 0.4 : 1, transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', gap: '8px'
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
+                  </svg>
+                  STOP
+                </button>
+              )
             }
-            <Btn label="↺ Reset" variant="ghost" disabled={loading || !!simStatus?.running}
-              onClick={() => onAction('/admin/simulator/reset', 'DELETE')} />
+            <button
+              disabled={loading || !!simStatus?.running}
+              onClick={() => onAction('/admin/simulator/reset', 'DELETE')}
+              style={{
+                background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)',
+                padding: '8px 16px', borderRadius: 5, cursor: (loading || !!simStatus?.running) ? 'not-allowed' : 'pointer',
+                fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
+                letterSpacing: '0.05em', fontWeight: 600, opacity: (loading || !!simStatus?.running) ? 0.4 : 1, transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: '8px'
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+              </svg>
+              RESET
+            </button>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input
@@ -398,7 +512,7 @@ function SectionSimulador({
               }}
             />
             <Btn
-              label={`→ ${nSteps.toLocaleString()} steps`}
+              label={`${nSteps.toLocaleString()} steps`}
               variant="primary"
               disabled={loading || !!simStatus?.running}
               onClick={() => onAction('/admin/simulator/step', 'POST', { n_steps: nSteps })}
@@ -581,7 +695,14 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
 
       {/* Danger zone */}
       <Card danger>
-        <SectionLabel>⚠ DANGER ZONE</SectionLabel>
+        <SectionLabel>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
+            </svg>
+            DANGER ZONE
+          </div>
+        </SectionLabel>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginBottom: 6 }}>TARGET</div>
@@ -631,18 +752,18 @@ function SectionML({ onAction, loading }: { onAction: (path: string, method?: st
 
   const handleRetrain = async () => {
     setRetraining(true)
-    setLog(['🧠 Iniciando reentrenamiento...'])
+    setLog(['Iniciando reentrenamiento...'])
     try {
       await onAction('/admin/ml/retrain', 'POST')
-      setLog(l => [...l, '✅ Reentrenamiento en background iniciado'])
+      setLog(l => [...l, 'Reentrenamiento en background iniciado'])
       setTimeout(async () => {
         const d = await adminFetch('/admin/ml/status')
         setModels(d.models ?? [])
-        setLog(l => [...l, '🔄 Métricas actualizadas'])
+        setLog(l => [...l, 'Métricas actualizadas'])
         setRetraining(false)
       }, 5000)
     } catch {
-      setLog(l => [...l, '❌ Error en reentrenamiento'])
+      setLog(l => [...l, 'Error en reentrenamiento'])
       setRetraining(false)
     }
   }
@@ -658,8 +779,39 @@ function SectionML({ onAction, loading }: { onAction: (path: string, method?: st
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-        <Btn label="💾 Backup manual" variant="ghost" onClick={handleBackup} disabled={loading} />
-        <Btn label="🧠 Reentrenar" variant="purple" onClick={handleRetrain} disabled={loading || retraining} />
+        <button
+          onClick={handleBackup}
+          disabled={loading}
+          style={{
+            background: 'transparent', color: 'var(--text)', border: '1px solid var(--border)',
+            padding: '8px 16px', borderRadius: 5, cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
+            letterSpacing: '0.05em', fontWeight: 600, opacity: loading ? 0.4 : 1, transition: 'all 0.15s',
+            display: 'flex', alignItems: 'center', gap: '8px'
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v13a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" />
+          </svg>
+          BACKUP MANUAL
+        </button>
+        <button
+          onClick={handleRetrain}
+          disabled={loading || retraining}
+          style={{
+            background: 'transparent', color: '#a78bfa', border: '1px solid #a78bfa',
+            padding: '8px 16px', borderRadius: 5, cursor: (loading || retraining) ? 'not-allowed' : 'pointer',
+            fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace",
+            letterSpacing: '0.05em', fontWeight: 600, opacity: (loading || retraining) ? 0.4 : 1, transition: 'all 0.15s',
+            display: 'flex', alignItems: 'center', gap: '8px'
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .52 8.242 4.42 4.42 0 0 0 8.71 0 4 4 0 0 0 .52-8.242 4 4 0 0 0-2.526-5.77A3 3 0 0 0 12 5" />
+            <path d="M9 13h4" /><path d="M12 10v6" />
+          </svg>
+          REENTRENAR
+        </button>
       </div>
 
       {/* Models table */}
@@ -799,11 +951,11 @@ export default function Control() {
     }
   }
 
-  const TABS: { id: AdminTab; label: string; icon: string }[] = [
-    { id: 'sistema', label: 'SISTEMA', icon: '◉' },
-    { id: 'simulador', label: 'SIMULADOR', icon: '⚙' },
-    { id: 'db', label: 'BASE DE DATOS', icon: '🗄' },
-    { id: 'ml', label: 'MODELOS ML', icon: '🧠' },
+  const TABS: { id: AdminTab; label: string; icon: React.ReactNode }[] = [
+    { id: 'sistema', label: 'SISTEMA', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg> },
+    { id: 'simulador', label: 'SIMULADOR', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg> },
+    { id: 'db', label: 'BASE DE DATOS', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg> },
+    { id: 'ml', label: 'MODELOS ML', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .52 8.242 4.42 4.42 0 0 0 8.71 0 4 4 0 0 0 .52-8.242 4 4 0 0 0-2.526-5.77A3 3 0 0 0 12 5" /><path d="M9 13h4" /><path d="M12 10v6" /></svg> },
   ]
 
   return (

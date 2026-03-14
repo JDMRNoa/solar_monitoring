@@ -35,9 +35,34 @@ export default function Navbar({ lastUpdated, currentPage, role, onNavigate, onL
         {/* Nav tabs */}
         <nav style={{ display: 'flex', gap: '4px' }}>
           {([
-            { id: 'plants',    label: '☀ PlantGrid' },
-            { id: 'dashboard', label: '📊 Dashboard' },
-            ...(role === 'admin' ? [{ id: 'control' as Page, label: '🛠 Control' }] : [])
+            {
+              id: 'plants',
+              label: 'PLANT GRID',
+              icon: (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="14" y="3" rx="1" /><rect width="7" height="7" x="14" y="14" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" />
+                </svg>
+              )
+            },
+            {
+              id: 'dashboard',
+              label: 'DASHBOARD',
+              icon: (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m12 14 4-4" /><path d="M3.34 19a10 10 0 1 1 17.32 0" />
+                </svg>
+              )
+            },
+            ...(role === 'admin' ? [{
+              id: 'control' as Page,
+              label: 'CONTROL',
+              icon: (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .52 8.242 4.42 4.42 0 0 0 8.71 0 4 4 0 0 0 .52-8.242 4 4 0 0 0-2.526-5.77A3 3 0 0 0 12 5" />
+                  <path d="M9 13h4" /><path d="M12 10v6" />
+                </svg>
+              )
+            }] : [])
           ]).map(tab => {
             const active = currentPage === tab.id
             return (
@@ -49,14 +74,18 @@ export default function Navbar({ lastUpdated, currentPage, role, onNavigate, onL
                   border: active ? '1px solid rgba(245,158,11,0.4)' : '1px solid transparent',
                   color: active ? '#f59e0b' : 'var(--text-dim)',
                   borderRadius: '4px',
-                  padding: '5px 14px',
+                  padding: '5px 12px',
                   fontSize: '0.72rem',
                   fontFamily: 'JetBrains Mono, monospace',
                   letterSpacing: '0.05em',
                   cursor: 'pointer',
                   transition: 'all 0.15s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
                 }}
               >
+                {tab.icon}
                 {tab.label}
               </button>
             )

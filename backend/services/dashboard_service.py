@@ -121,7 +121,7 @@ def _close_package(pkg: dict) -> dict:
     return result
 
 
-# ── Etiquetas legibles ────────────────────────────────────────────────────────
+# --- Etiquetas legibles --------------------------------------------------------
 
 _FAULT_LABELS = {
     "inverter_derate": "Inverter Derate",
