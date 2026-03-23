@@ -15,3 +15,23 @@ solar_simulator/output/simulator_state.json
 # Backups dinámicos (conservar solo el inicial)
 solar_simulator/output/backups/*.csv
 !solar_simulator/output/backups/solar_stream_initial_backup.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Archivos de debug temporales
+backend/debug_ollama.py
+backend/debug_persona.py
+backend/api/debug_ollama.py
+
+# Vite timestamps
+*.timestamp-*.mjs
+
+# Logs
+tunnel_logs.txt
+tunnel_logs_full.txt
+
+# Zips
+*.zip
