@@ -1,7 +1,11 @@
 import { useState, useCallback, useEffect } from 'react'
+import { Cpu } from 'lucide-react'
 import type { Summary, TimeseriesItem, FaultPackage, PlantThresholds } from '../types'
-import { fetchSummary, fetchTimeseries, fetchFaultPackages } from '../lib/api'
-import { PowerChart, ResidualFaultChart, TempIrradianceChart, PerformanceRatioChart } from '../components/Charts'
+import { fetchSummary, fetchTimeseries, fetchFaultPackages, sendChatMessage } from '../lib/api'
+import { 
+  PowerChart, ResidualFaultChart, TempIrradianceChart, PerformanceRatioChart,
+  EnergyAccumulatedChart, PRGaugeChart, FaultDonut, PRTrendBarChart
+} from '../components/Charts'
 import AlertsTable from '../components/AlertsTable'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -128,16 +132,20 @@ interface DashboardProps {
   onPlantChange?: (plantId: number) => void
 }
 
-export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlantChange }: DashboardProps) {
-  const [plantId, setPlantId]         = useState(initialPlantId)
-  const [hours, setHours]             = useState(12)
-  const [thresholds, setThresholds]   = useState<PlantThresholds>({})
-  const [state, setState]             = useState<LoadState>('idle')
-  const [error, setError]             = useState<string | null>(null)
-  const [summary, setSummary]         = useState<Summary | null>(null)
-  const [tsData, setTsData]           = useState<TimeseriesItem[]>([])
-  const [packages, setPackages]       = useState<FaultPackage[]>([])
+export default function Dashboard({ initialPlantId, onPlantChange, onLastTimestamp }: DashboardProps) {
+  const [plantId, setPlantId]   = useState(initialPlantId ?? 1)
+  const [hours, setHours]       = useState(12)
+  const [thresholds, setThresholds] = useState<PlantThresholds>({})
+  const [state, setState]       = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [error, setError]       = useState<string | null>(null)
+  const [summary, setSummary]   = useState<Summary | null>(null)
+  const [tsData, setTsData]     = useState<TimeseriesItem[]>([])
+  const [packages, setPackages] = useState<FaultPackage[]>([])
   const [pendingLoad, setPendingLoad] = useState(false)
+  const [showAnalysis, setShowAnalysis] = useState(false)
+  const [chatMessages, setChatMessages] = useState<{ role: string; content: string }[]>([])
+  const [chatInput, setChatInput]       = useState('')
+  const [isChatLoading, setIsChatLoading] = useState(false)
 
   const plantMeta  = PLANTS.find(p => p.value === plantId) ?? PLANTS[0]
   const capacityKw = plantMeta.capacity_kw
@@ -146,6 +154,7 @@ export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlant
     setPendingLoad(false)
     setState('loading')
     setError(null)
+    setChatMessages([]) // Reset chat when switching context
     const threshold = thresholds[plantId] ?? DEFAULT_THRESHOLD
     try {
       const [s, ts, pkgs] = await Promise.all([
@@ -172,6 +181,39 @@ export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlant
     setPendingLoad(true)
   }
 
+  async function handleSendChat() {
+    if (!chatInput.trim() || isChatLoading) return
+    const userMsg = { role: 'user', content: chatInput }
+    const newMessages = [...chatMessages, userMsg]
+    setChatMessages(newMessages)
+    setChatInput('')
+    setIsChatLoading(true)
+    
+    setChatMessages(prev => [...prev, { role: 'assistant', content: '' }])
+    
+    try {
+      await sendChatMessage(plantId, hours, newMessages, (chunk) => {
+        setChatMessages(prev => {
+          const latest = [...prev]
+          latest[latest.length - 1] = { 
+            ...latest[latest.length - 1], 
+            content: latest[latest.length - 1].content + chunk 
+          }
+          return latest
+        })
+      })
+    } catch(e) {
+      console.error("Chat error:", e)
+      setChatMessages(prev => {
+        const latest = [...prev]
+        latest[latest.length - 1] = { role: 'assistant', content: '❌ Error: No se pudo conectar con Ollama.' }
+        return latest
+      })
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
   const lastTs    = summary?.last_ts ?? (tsData.length > 0 ? tsData[tsData.length - 1].ts : null)
   const probColor = summary?.max_fault_proba != null
     ? summary.max_fault_proba > 0.8 ? '#f85149' : summary.max_fault_proba > 0.5 ? '#f59e0b' : '#3fb950'
@@ -186,59 +228,74 @@ export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlant
   const capColor  = capFactorNum != null
     ? (capFactorNum > 0.6 ? '#3fb950' : capFactorNum > 0.35 ? '#f59e0b' : '#f85149')
     : undefined
+  const maxP = summary?.max_power ?? 0
+  const avgP = summary?.avg_power ?? 0
+  const totalEnergy = tsData.reduce((acc, d) => acc + (d.power_ac_kw ?? 0) * 0.25, 0)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col gap-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-8 animate-in fade-in duration-700">
 
       {/* Controls */}
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px' }}
-           className="flex flex-wrap items-end gap-4 px-4 py-3">
-        <Select
-          label="PLANTA" value={plantId} options={PLANTS}
-          onChange={v => { setPendingLoad(true); setPlantId(Number(v)); onPlantChange?.(Number(v)) }}
-        />
-        <Select
-          label="PERÍODO" value={hours}
-          options={[
-            { label: '12 h',    value: 12    },
-            { label: '24 h',    value: 24    },
-            { label: '48 h',    value: 48    },
-            { label: '7 días',  value: 168   },
-            { label: '30 días', value: 720   },
-            { label: '6 meses', value: 4380  },
-            { label: 'Todo',    value: 11000 },
-          ]}
-          onChange={v => { setPendingLoad(true); setHours(Number(v)) }}
-        />
+           className="flex flex-col md:flex-row md:items-end gap-4 px-4 py-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-end gap-4 w-full lg:w-auto">
+          <Select
+            label="PLANTA" value={plantId} options={PLANTS}
+            onChange={v => { setPendingLoad(true); setPlantId(Number(v)); onPlantChange?.(Number(v)) }}
+          />
+          <Select
+            label="PERÍODO" value={hours}
+            options={[
+              { label: '12 h',    value: 12    },
+              { label: '24 h',    value: 24    },
+              { label: '48 h',    value: 48    },
+              { label: '7 días',  value: 168   },
+              { label: '30 días', value: 720   },
+              { label: '6 meses', value: 4380  },
+              { label: 'Todo',    value: 11000 },
+            ]}
+            onChange={v => { setPendingLoad(true); setHours(Number(v)) }}
+          />
+          
+          <div className="flex items-center gap-4 lg:gap-4 mt-2 lg:mt-0">
+            <button
+              onClick={load} disabled={state === 'loading'}
+              style={{
+                background: state === 'loading' ? 'var(--surface-2)' : 'var(--solar-dim)',
+                border: '1px solid', borderColor: state === 'loading' ? 'var(--border)' : '#f59e0b88',
+                color: state === 'loading' ? 'var(--text-dim)' : '#f59e0b',
+                borderRadius: '4px', padding: '5px 16px', height: '34px', fontSize: '0.7rem',
+                fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em',
+                cursor: state === 'loading' ? 'not-allowed' : 'pointer',
+              }}
+              className="flex-1 lg:flex-none"
+            >
+              {state === 'loading' ? 'CARGANDO...' : '↻ REFRESH'}
+            </button>
 
-        <ThresholdSlider plantId={plantId} thresholds={thresholds} onChange={handleThresholdChange} />
-
-        <button
-          onClick={load} disabled={state === 'loading'}
-          style={{
-            background: state === 'loading' ? 'var(--surface-2)' : 'var(--solar-dim)',
-            border: '1px solid', borderColor: state === 'loading' ? 'var(--border)' : '#f59e0b88',
-            color: state === 'loading' ? 'var(--text-dim)' : '#f59e0b',
-            borderRadius: '4px', padding: '5px 16px', fontSize: '0.7rem',
-            fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.08em',
-            cursor: state === 'loading' ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {state === 'loading' ? 'CARGANDO...' : '↻ REFRESH'}
-        </button>
-
-        {/* Capacidad de la planta seleccionada */}
-        <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ letterSpacing: '0.08em' }}>CAPACIDAD</span>
-          <span style={{ color: '#f59e0b', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>{capacityKw} kW</span>
+            {/* Capacidad de la planta seleccionada (Mobile) */}
+            <div className="flex lg:hidden flex-col gap-1">
+              <span className="text-[10px] text-text-dim uppercase tracking-wider">CAPACIDAD</span>
+              <span className="text-solar font-bold font-mono text-xs">{capacityKw} kW</span>
+            </div>
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2" style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>
-          <span style={{
-            width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block',
-            background: pendingLoad ? '#f59e0b' : state === 'success' ? '#3fb950' : state === 'error' ? '#f85149' : '#6b7f94',
-          }} />
-          {pendingLoad ? 'APLICANDO...' : state === 'success' ? 'LIVE' : state === 'error' ? 'ERROR' : '—'}
+        <div className="hidden lg:flex flex-col gap-1 border-l border-border/50 pl-4 ml-2">
+          <span className="text-[10px] text-text-dim uppercase tracking-wider">CAPACIDAD</span>
+          <span className="text-solar font-bold font-mono text-xs">{capacityKw} kW</span>
+        </div>
+
+        <div className="md:ml-auto flex flex-col sm:flex-row items-start sm:items-center justify-between md:justify-end gap-6 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-border/50">
+          <ThresholdSlider plantId={plantId} thresholds={thresholds} onChange={handleThresholdChange} />
+          
+          <div className="flex items-center gap-2 border-l border-border/50 pl-4" style={{ fontSize: '0.6rem', color: 'var(--text-dim)' }}>
+            <span style={{
+              width: '6px', height: '6px', borderRadius: '50%', display: 'inline-block',
+              background: pendingLoad ? '#f59e0b' : state === 'success' ? '#3fb950' : state === 'error' ? '#f85149' : '#6b7f94',
+            }} />
+            {pendingLoad ? 'APLICANDO...' : state === 'success' ? 'LIVE' : state === 'error' ? 'ERROR' : '—'}
+          </div>
         </div>
       </div>
 
@@ -247,10 +304,11 @@ export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlant
 
       {(state === 'success' || state === 'idle') && summary && (
         <>
-          {/* KPI row — 7 tarjetas incluyendo cap. factor */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-            <KpiCard label="POTENCIA PROM."    value={safeFixed(summary.avg_power)} sub="kW" accent="#f59e0b" />
-            <KpiCard label="POTENCIA MÁX."     value={safeFixed(summary.max_power)} sub="kW" />
+          {/* KPI row — 8 tarjetas */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+            <KpiCard label="POTENCIA PROM. (kW)" value={avgP.toFixed(2)} accent="#f59e0b" />
+            <KpiCard label="POTENCIA MÁX. (kW)" value={maxP.toFixed(2)} />
+            <KpiCard label="ENERGÍA PERÍODO (kWh)" value={totalEnergy.toFixed(2)} accent="#f59e0b" />
             <KpiCard label="CAP. FACTOR"       value={capFactor} accent={capColor} />
             <KpiCard label="LECTURAS"          value={safeInt(summary.total_readings)} />
             <KpiCard label="FALLAS"            value={safeInt(summary.total_faults)} accent={(summary.total_faults ?? 0) > 0 ? '#f85149' : undefined} />
@@ -258,17 +316,99 @@ export default function Dashboard({ onLastTimestamp, initialPlantId = 1, onPlant
             <KpiCard label="ÚLTIMO DATO"       value={lastTime} sub={lastDate} />
           </div>
 
-          {/* 4 gráficas en grid 2×2 */}
+          <hr style={{ borderColor: 'var(--border)', margin: '16px 0', opacity: 0.5 }} />
+
+          {/* ZONA 2 — TIEMPO REAL (4 Gráficas Principales) */}
           {tsData.length > 0 ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <PowerChart            data={tsData} />
-              <ResidualFaultChart    data={tsData} />
-              <TempIrradianceChart   data={tsData} />
-              <PerformanceRatioChart data={tsData} capacityKw={capacityKw} />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 w-full">
+              <PowerChart data={tsData} />
+              <EnergyAccumulatedChart data={tsData} />
+              <ResidualFaultChart data={tsData} />
+              <TempIrradianceChart data={tsData} />
             </div>
           ) : (
             <div style={{ border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-dim)', fontSize: '0.75rem', padding: '24px', textAlign: 'center' }}>
               SIN DATOS DE SERIES DE TIEMPO EN EL PERÍODO
+            </div>
+          )}
+
+          {/* ZONA 3 — ANÁLISIS DETALLADO Y CHATBOT (Colapsable) */}
+          {tsData.length > 0 && (
+            <div className="flex flex-col gap-4 mt-2">
+              <button 
+                onClick={() => setShowAnalysis(!showAnalysis)} 
+                className="w-full text-center p-3 rounded-md text-[0.65rem] tracking-wider text-text-dim hover:text-white border border-border/50 bg-surface-2 hover:bg-[#1e2d3d] transition-colors font-mono uppercase"
+              >
+                {showAnalysis ? '▲ OCULTAR ANÁLISIS PROFUNDO' : '▼ VER ANÁLISIS PROFUNDO E IA'}
+              </button>
+              
+              {showAnalysis && (
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full mt-4 animate-in slide-in-from-top-4 duration-300">
+                  
+                  {/* Left Column: PR Line Chart (top), 2 widgets (bottom) */}
+                  <div className="xl:col-span-2 flex flex-col gap-6">
+                    {/* Top Chart (Wide) */}
+                    <div className="w-full">
+                      <PerformanceRatioChart data={tsData} capacityKw={capacityKw} />
+                    </div>
+                    {/* Bottom Widgets (Small, side-by-side) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                      <PRGaugeChart data={tsData} capacityKw={capacityKw} />
+                      <PRTrendBarChart data={tsData} capacityKw={capacityKw} />
+                    </div>
+                  </div>
+
+                  {/* Right Column: Chat IA (33% width, taking full height) */}
+                  <div className="xl:col-span-1 flex flex-col min-h-[450px]">
+                    <div className="w-full flex-1 border border-border/50 rounded-lg bg-surface-2/30 flex flex-col overflow-hidden">
+                      <div className="bg-[#1e2d3d]/40 px-4 py-3 border-b border-border/50 flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-solar/20 flex items-center justify-center border border-solar/40 shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                          <Cpu size={14} className="text-solar" />
+                        </div>
+                        <span className="text-[0.65rem] font-bold tracking-widest text-[#c9d1d9] uppercase">SOLAREX-AI Diagnostics</span>
+                      </div>
+                      <div className="flex-1 p-5 flex flex-col min-h-0">
+                        <div className="flex-1 flex flex-col overflow-y-auto mb-4 space-y-4 pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--border) transparent' }}>
+                          {chatMessages.length === 0 ? (
+                            <div className="flex-1 flex flex-col justify-center items-center text-center opacity-50 mb-6 m-auto">
+                              <p className="text-xs text-text-dim max-w-sm leading-relaxed">
+                                El Asistente LLM leerá el contexto actual de la planta para diagnosticar caídas de PR, detectar soiling y explicar fallas automáticamente.
+                              </p>
+                            </div>
+                          ) : (
+                            chatMessages.map((msg, i) => (
+                              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`px-3 py-2 max-w-[90%] text-[0.7rem] ${msg.role === 'user' ? 'bg-solar text-black rounded-tl-lg rounded-tr-none rounded-br-lg rounded-bl-lg' : 'bg-surface-2 border border-border/50 text-[#c9d1d9] rounded-tr-lg rounded-tl-none rounded-br-lg rounded-bl-lg whitespace-pre-wrap leading-relaxed'}`}>
+                                  {msg.content}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <input 
+                            type="text" 
+                            placeholder="Pregunta sobre la eficiencia de la planta..." 
+                            className="flex-1 bg-surface-2 border border-border/50 rounded-lg p-3 text-[0.75rem] text-[#c9d1d9] focus:outline-none focus:border-solar/60 shadow-inner" 
+                            value={chatInput}
+                            onChange={e => setChatInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSendChat() }}
+                            disabled={isChatLoading}
+                          />
+                          <button 
+                            className={`px-6 py-2 rounded-lg text-xs font-bold transition-colors shadow-md ${isChatLoading ? 'bg-surface-2 text-text-dim cursor-not-allowed border border-border/50' : 'bg-solar text-black hover:bg-orange-400'}`} 
+                            onClick={handleSendChat}
+                            disabled={isChatLoading}
+                          >
+                            {isChatLoading ? '...' : 'ENVIAR'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              )}
             </div>
           )}
 

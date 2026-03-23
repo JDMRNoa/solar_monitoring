@@ -217,7 +217,7 @@ function SectionSistema({
         </div>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <StatBox label="SOLAR READINGS" value={(db?.solar_readings ?? 0).toLocaleString()} color='var(--blue)' />
         <StatBox label="AI PREDICTIONS" value={(db?.ai_predictions ?? 0).toLocaleString()} color='#a78bfa' />
         <StatBox label="AI EXPLANATIONS" value={(db?.ai_explanations ?? 0).toLocaleString()} color='var(--green)' />
@@ -417,14 +417,14 @@ function SectionSimulador({
   const [nSteps, setNSteps] = useState(1000)
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
       {/* Left */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="flex flex-col gap-4">
         <Card>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <div className="flex justify-between items-center mb-3.5">
             <SectionLabel>ESTADO</SectionLabel>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className="flex items-center gap-1.5">
               <div style={{
                 width: 7, height: 7, borderRadius: '50%',
                 background: simStatus?.running ? 'var(--green)' : 'var(--red)',
@@ -435,7 +435,7 @@ function SectionSimulador({
               </span>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="grid grid-cols-2 gap-2.5">
             <StatBox label="STEPS" value={(simStatus?.step_count ?? 0).toLocaleString()} />
             <StatBox label="REGISTROS" value={(simStatus?.total_records ?? 0).toLocaleString()} />
             <StatBox label="TASA FALLAS" value={`${simStatus?.fault_rate_pct ?? 0}%`} color='var(--solar)' />
@@ -696,16 +696,16 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
       {/* Danger zone */}
       <Card danger>
         <SectionLabel>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="flex items-center gap-2">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><path d="M12 9v4" /><path d="M12 17h.01" />
             </svg>
             DANGER ZONE
           </div>
         </SectionLabel>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginBottom: 6 }}>TARGET</div>
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+          <div className="flex-1">
+            <div className="text-[10px] text-text-dim mb-1.5 uppercase tracking-wider">TARGET</div>
             <select value={target} onChange={e => setTarget(e.target.value)} style={{
               width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
               color: 'var(--text)', padding: '8px 10px', borderRadius: 5,
@@ -717,8 +717,8 @@ function SectionDB({ onAction, loading }: { onAction: (path: string, method?: st
               <option value="explanations">Solo ai_explanations</option>
             </select>
           </div>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginBottom: 6 }}>ESCRIBE "CONFIRMAR"</div>
+          <div className="flex-1">
+            <div className="text-[10px] text-text-dim mb-1.5 uppercase tracking-wider">ESCRIBE "CONFIRMAR"</div>
             <input
               value={confirm} onChange={e => setConfirm(e.target.value)}
               placeholder="CONFIRMAR"
@@ -817,57 +817,59 @@ function SectionML({ onAction, loading }: { onAction: (path: string, method?: st
       {/* Models table */}
       <Card>
         <SectionLabel>ARTEFACTOS POR PLANTA</SectionLabel>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', fontFamily: "'JetBrains Mono', monospace" }}>
-          <thead>
-            <tr>
-              {['PLANTA', 'N', 'F1 BIN', 'AUC', 'MAE kW', 'F1 TIPO', 'BACKUP', 'ACCIONES'].map(h => (
-                <th key={h} style={{ padding: '7px 12px', textAlign: 'left', color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', fontSize: '0.58rem', letterSpacing: '0.1em' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {models.length === 0 ? (
-              <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-dim)' }}>Sin datos de modelos</td></tr>
-            ) : models.map(m => (
-              <tr key={m.plant_id} style={{ borderBottom: '1px solid rgba(30,45,61,0.5)' }}>
-                <td style={{ padding: '9px 12px' }}>
-                  <span style={{ color: '#fff', fontWeight: 700 }}>P{m.plant_id}</span>
-                  <span style={{ color: 'var(--text-dim)', marginLeft: 8, fontSize: '0.65rem' }}>{m.plant_name}</span>
-                </td>
-                <td style={{ padding: '9px 12px', color: 'var(--text-dim)', fontSize: '0.65rem' }}>
-                  {m.n_samples != null ? m.n_samples.toLocaleString() : '—'}
-                </td>
-                <td style={{ padding: '9px 12px', color: f1Color(m.f1_binary) }}>
-                  {m.f1_binary != null ? m.f1_binary.toFixed(4) : '—'}
-                </td>
-                <td style={{ padding: '9px 12px', color: f1Color(m.roc_auc) }}>
-                  {m.roc_auc != null ? m.roc_auc.toFixed(4) : '—'}
-                </td>
-                <td style={{ padding: '9px 12px', color: 'var(--solar)' }}>
-                  {m.mae != null ? m.mae.toFixed(3) : '—'}
-                </td>
-                <td style={{ padding: '9px 12px', color: f1Color(m.f1_type) }}>
-                  {m.f1_type != null ? m.f1_type.toFixed(4) : '—'}
-                </td>
-                <td style={{ padding: '9px 12px' }}>
-                  {m.has_backup
-                    ? <span style={{ color: 'var(--green)', fontSize: '0.65rem' }}>✓</span>
-                    : <span style={{ color: 'var(--border)', fontSize: '0.65rem' }}>—</span>}
-                </td>
-                <td style={{ padding: '9px 12px' }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <Btn label="↓" variant="ghost" small
-                      onClick={() => window.open(`${BASE}/admin/ml/download/${m.plant_id}`, '_blank')} />
-                    {m.has_backup && (
-                      <Btn label="↩" variant="ghost" small
-                        onClick={() => onAction(`/admin/ml/restore/latest/${m.plant_id}`, 'POST')} />
-                    )}
-                  </div>
-                </td>
+        <div className="overflow-x-auto no-scrollbar">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', fontFamily: "'JetBrains Mono', monospace" }}>
+            <thead>
+              <tr>
+                {['PLANTA', 'N', 'F1 BIN', 'AUC', 'MAE kW', 'F1 TIPO', 'BACKUP', 'ACCIONES'].map(h => (
+                  <th key={h} style={{ padding: '7px 12px', textAlign: 'left', color: 'var(--text-dim)', borderBottom: '1px solid var(--border)', fontSize: '0.58rem', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {models.length === 0 ? (
+                <tr><td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-dim)' }}>Sin datos de modelos</td></tr>
+              ) : models.map(m => (
+                <tr key={m.plant_id} style={{ borderBottom: '1px solid rgba(30,45,61,0.5)' }}>
+                  <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: '#fff', fontWeight: 700 }}>P{m.plant_id}</span>
+                    <span style={{ color: 'var(--text-dim)', marginLeft: 8, fontSize: '0.65rem' }}>{m.plant_name}</span>
+                  </td>
+                  <td style={{ padding: '9px 12px', color: 'var(--text-dim)', fontSize: '0.65rem' }}>
+                    {m.n_samples != null ? m.n_samples.toLocaleString() : '—'}
+                  </td>
+                  <td style={{ padding: '9px 12px', color: f1Color(m.f1_binary) }}>
+                    {m.f1_binary != null ? m.f1_binary.toFixed(4) : '—'}
+                  </td>
+                  <td style={{ padding: '9px 12px', color: f1Color(m.roc_auc) }}>
+                    {m.roc_auc != null ? m.roc_auc.toFixed(4) : '—'}
+                  </td>
+                  <td style={{ padding: '9px 12px', color: 'var(--solar)' }}>
+                    {m.mae != null ? m.mae.toFixed(3) : '—'}
+                  </td>
+                  <td style={{ padding: '9px 12px', color: f1Color(m.f1_type) }}>
+                    {m.f1_type != null ? m.f1_type.toFixed(4) : '—'}
+                  </td>
+                  <td style={{ padding: '9px 12px' }}>
+                    {m.has_backup
+                      ? <span style={{ color: 'var(--green)', fontSize: '0.65rem' }}>✓</span>
+                      : <span style={{ color: 'var(--border)', fontSize: '0.65rem' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '9px 12px' }}>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <Btn label="↓" variant="ghost" small
+                        onClick={() => window.open(`${BASE}/admin/ml/download/${m.plant_id}`, '_blank')} />
+                      {m.has_backup && (
+                        <Btn label="↩" variant="ghost" small
+                          onClick={() => onAction(`/admin/ml/restore/latest/${m.plant_id}`, 'POST')} />
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {/* Retrain log */}
@@ -962,13 +964,8 @@ export default function Control() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: "'JetBrains Mono', monospace" }}>
 
       {/* Sub-navbar */}
-      <div style={{
-        borderBottom: '1px solid var(--border)',
-        background: 'var(--surface)',
-        padding: '0 32px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      }}>
-        <div style={{ display: 'flex' }}>
+      <div className="border-b border-border bg-surface px-4 sm:px-8 flex items-center justify-between overflow-x-auto no-scrollbar">
+        <div className="flex shrink-0">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               display: 'flex', alignItems: 'center', gap: 7,
@@ -980,26 +977,24 @@ export default function Control() {
               fontSize: '0.72rem', letterSpacing: '0.1em',
               cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace",
               transition: 'all 0.15s',
+              whiteSpace: 'nowrap'
             }}>
               <span>{t.icon}</span> {t.label}
             </button>
           ))}
         </div>
-        <div style={{ fontSize: '0.62rem', color: loading ? 'var(--solar)' : 'var(--text-dim)' }}>
+        <div className="hidden sm:block text-[10px] text-text-dim/60">
           {loading ? '⏳ ejecutando...' : '● admin'}
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ padding: '28px 32px', maxWidth: 1100, margin: '0 auto' }}>
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{
-            fontFamily: "'Syne', sans-serif", color: '#fff',
-            fontSize: '1.3rem', margin: '0 0 4px', fontWeight: 800,
-          }}>
+      <div className="p-5 sm:p-8 max-w-[1100px] mx-auto">
+        <div className="mb-6">
+          <h1 className="font-syne text-white text-lg sm:text-xl mb-1 font-extrabold flex items-center gap-2">
             {TABS.find(t => t.id === tab)?.icon} {TABS.find(t => t.id === tab)?.label}
           </h1>
-          <div style={{ color: 'var(--text-dim)', fontSize: '0.72rem' }}>
+          <div className="text-text-dim text-[11px] sm:text-xs">
             Panel de administración · Solo rol admin
           </div>
         </div>

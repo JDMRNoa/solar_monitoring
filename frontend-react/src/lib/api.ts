@@ -65,3 +65,49 @@ export async function fetchFaultEvents(
   )
   return Array.isArray(res) ? res : []
 }
+
+export async function sendChatMessage(
+  plant_id: number,
+  period_hours: number,
+  messages: { role: string; content: string }[],
+  onChunk: (text: string) => void
+): Promise<void> {
+  const token = Cookies.get('solarmonitor_jwt')
+  const headers: HeadersInit = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${BASE}/chat/`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ plant_id, period_hours, messages })
+  })
+
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+  
+  const reader = res.body?.getReader()
+  if (!reader) return
+  
+  const decoder = new TextDecoder("utf-8")
+  let buffer = ""
+  
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ""
+    
+    for (const line of lines) {
+      if (!line.trim()) continue
+      try {
+        const obj = JSON.parse(line)
+        if (obj.message?.content) {
+          onChunk(obj.message.content)
+        }
+      } catch (e) {
+        console.error("Error parsing chat chunk:", e)
+      }
+    }
+  }
+}

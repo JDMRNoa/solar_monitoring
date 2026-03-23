@@ -257,51 +257,48 @@ function WeatherBar({
       borderBottom: '1px solid var(--border)', marginBottom: '20px', paddingBottom: '12px',
     }}>
       {/* Datos de clima — planta seleccionada desde las tarjetas */}
-      <div style={{
-        display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'center',
-        fontSize: '0.68rem', color: 'var(--text-dim)',
-      }}>
-        <span style={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '0.60rem', flexShrink: 0, color: '#f59e0b' }}>
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-x-4 gap-y-3 sm:gap-5 items-center text-[11px] sm:text-[12.5px] text-text-dim">
+        <span className="col-span-2 sm:col-auto uppercase tracking-widest text-[10px] sm:text-[11px] font-bold text-solar mb-1 sm:mb-0">
           {meta.name}
         </span>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>☁</span>
-          <span>Nubosidad:</span>
-          <div style={{ width: '50px', height: '4px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
-            <div style={{ height: '100%', borderRadius: '2px', transition: 'width 1s', background: 'linear-gradient(90deg,#4fc3f7,#81d4fa)', width: cloudPct != null ? cloudPct + '%' : '0%' }} />
+        <div className="flex items-center gap-2">
+          <span className="opacity-70">☁</span>
+          <span>Nubes:</span>
+          <div className="w-10 h-1 background-border rounded-full overflow-hidden">
+            <div style={{ height: '100%', transition: 'width 1s', background: 'linear-gradient(90deg,#4fc3f7,#81d4fa)', width: cloudPct != null ? cloudPct + '%' : '0%' }} />
           </div>
-          <span>{cloudPct != null ? cloudPct + '%' : '–'}</span>
+          <span className="font-mono">{cloudPct != null ? cloudPct + '%' : '–'}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>🌡</span>
-          <span>{r.temp_ambient_c != null ? r.temp_ambient_c.toFixed(1) + '°C' : '–'}</span>
+        <div className="flex items-center gap-2">
+          <span className="opacity-70">🌡</span>
+          <span className="font-mono">{r.temp_ambient_c != null ? r.temp_ambient_c.toFixed(1) + '°C' : '–'}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>💨</span>
-          <span>{r.wind_ms != null ? r.wind_ms.toFixed(1) + ' m/s' : '–'}</span>
+        <div className="flex items-center gap-2">
+          <span className="opacity-70">💨</span>
+          <span className="font-mono">{r.wind_ms != null ? r.wind_ms.toFixed(1) + ' m/s' : '–'}</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span>☀</span>
-          <span>{r.irradiance_wm2 != null ? Math.round(r.irradiance_wm2) + ' W/m²' : '–'}</span>
+        <div className="flex items-center gap-2">
+          <span className="opacity-70">☀</span>
+          <span className="font-mono">{r.irradiance_wm2 != null ? Math.round(r.irradiance_wm2) + ' W/m²' : '–'}</span>
         </div>
 
         {soilingPct != null && soilingPct > 5 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>🟫</span>
+          <div className="flex items-center gap-2 col-span-2 sm:col-auto">
+            <span className="opacity-70">🟫</span>
             <span style={{ color: soilingPct > 15 ? '#ffd600' : 'var(--text-dim)' }}>
-              Suciedad: {soilingPct}%
+              Suciedad: <span className="font-mono">{soilingPct}%</span>
             </span>
           </div>
         )}
 
         {r.rain_active && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span>🌧</span>
-            <span style={{ color: '#00d4ff' }}>Lluvia – limpieza paneles</span>
+          <div className="flex items-center gap-2 col-span-2 sm:col-auto">
+            <span className="opacity-70 text-blue-400">🌧</span>
+            <span className="text-blue-400 font-medium">Lluvia – limpieza activa</span>
           </div>
         )}
       </div>
@@ -383,51 +380,39 @@ function PlantCard({ meta, reading, history, loading, onDashboard, onWeatherSele
       display: 'flex', flexDirection: 'column',
     }}>
       {/* Header */}
-      <div style={{
-        padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)', gap: '6px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 }}>
+      <div className="p-2.5 sm:px-3 sm:py-2.5 flex flex-col sm:flex-row sm:justify-between sm:items-center border-b border-border bg-white/[0.02] gap-2">
+        <div className="flex items-center gap-2 min-w-0 overflow-hidden">
           <span
             onClick={onWeatherSelect}
             title="Ver clima de esta planta"
+            className="font-syne font-semibold text-[13px] sm:text-[14px] whitespace-nowrap cursor-pointer transition-all truncate"
             style={{
-              fontFamily: 'Syne, sans-serif', fontWeight: 600, fontSize: '0.82rem',
-              whiteSpace: 'nowrap', cursor: 'pointer',
               color: isWeatherActive ? '#f59e0b' : 'inherit',
               borderBottom: isWeatherActive ? '1px solid rgba(245,158,11,0.5)' : '1px solid transparent',
-              transition: 'color 0.15s, border-color 0.15s',
             }}
           >
             P{meta.id} · {meta.name}
           </span>
-          <span style={{
-            fontSize: '0.55rem', background: 'var(--border)', padding: '2px 6px',
-            borderRadius: '3px', color: 'var(--text-dim)', letterSpacing: '0.06em', flexShrink: 0,
-          }}>{meta.location}</span>
+          <span className="text-[9px] bg-border px-1.5 py-0.5 rounded text-text-dim tracking-wider shrink-0 uppercase">
+            {meta.location}
+          </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-          <span style={{
-            fontSize: '0.58rem', padding: '2px 8px', borderRadius: '3px',
-            letterSpacing: '0.07em', fontWeight: 700, textTransform: 'uppercase',
-            background: badgeBg, color: badgeColor, border: `1px solid ${badgeBdr}`,
-          }}>{badgeText}</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[10px] px-2 py-0.5 rounded tracking-tighter sm:tracking-normal font-bold uppercase truncate max-w-[100px] sm:max-w-none"
+                style={{ background: badgeBg, color: badgeColor, border: `1px solid ${badgeBdr}` }}>
+            {badgeText}
+          </span>
           {/* Botón Dashboard */}
           <button
             onClick={(e) => { e.stopPropagation(); onDashboard() }}
             title={`Ver dashboard de ${meta.name}`}
-            style={{
-              background: 'rgba(88,166,255,0.08)', border: '1px solid rgba(88,166,255,0.3)',
-              color: '#58a6ff', borderRadius: '3px', padding: '4px 8px',
-              fontSize: '0.55rem', fontFamily: 'JetBrains Mono, monospace',
-              cursor: 'pointer', letterSpacing: '0.04em', whiteSpace: 'nowrap',
-              display: 'flex', alignItems: 'center', gap: '4px'
-            }}
+            className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded px-2 py-1 text-[9px] font-mono cursor-pointer tracking-tight"
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
               <path d="m12 14 4-4" /><path d="M3.34 19a10 10 0 1 1 17.32 0" />
             </svg>
-            DASHBOARD
+            <span className="hidden sm:inline">DASHBOARD</span>
+            <span className="sm:hidden">DASH</span>
           </button>
         </div>
       </div>
@@ -511,7 +496,7 @@ function SummaryStrip({ data }: { data: Record<number, LivePlantData> }) {
   const capFactor = totalCap > 0 ? (totalPow / totalCap * 100) : 0
 
   return (
-    <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+    <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-end">
       {[
         { label: 'Potencia Total', value: totalPow.toFixed(1) + ' kW', color: '#f59e0b' },
         { label: 'Energía Hoy', value: totalEnergy.toFixed(1) + ' kWh', color: undefined },
@@ -519,8 +504,8 @@ function SummaryStrip({ data }: { data: Record<number, LivePlantData> }) {
         { label: 'Fallas Activas', value: String(faultCount), color: faultCount > 0 ? '#f85149' : '#3fb950' },
         { label: 'Online', value: `${valid.length} / ${PLANT_META.length}`, color: undefined },
       ].map(s => (
-        <div key={s.label} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <span style={{ fontSize: '0.58rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{s.label}</span>
+        <div key={s.label} className="flex flex-row sm:flex-col gap-2 sm:gap-0.5 items-baseline sm:items-start justify-between sm:justify-start w-full sm:w-auto border-b sm:border-b-0 border-border/30 pb-1 sm:pb-0">
+          <span style={{ fontSize: '0.58rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em' }} className="flex-shrink-0">{s.label}</span>
           <span style={{ fontSize: '1.0rem', fontWeight: 700, fontFamily: 'Syne, sans-serif', color: s.color ?? 'var(--text)' }}>{s.value}</span>
         </div>
       ))}
@@ -686,11 +671,7 @@ export default function PlantGrid({ onSelectPlant }: Props) {
     <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '20px 24px' }}>
 
       {/* Header */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-        marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '14px',
-        gap: '16px', flexWrap: 'wrap',
-      }}>
+      <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end mb-4 border-b border-border pb-3.5 gap-4">
         <div>
           <h1 style={{ fontFamily: 'Syne, sans-serif', fontWeight: 800, fontSize: '1.2rem', letterSpacing: '-0.02em', color: '#fff', margin: 0 }}>
             PLANTAS SOLARES
@@ -711,7 +692,7 @@ export default function PlantGrid({ onSelectPlant }: Props) {
       <WeatherBar data={liveData} selectedId={weatherPlant} onSelect={setWeatherPlant} />
 
       {/* Grid 4×2 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '14px' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {PLANT_META.map((meta) => (
           <PlantCard
             key={meta.id}

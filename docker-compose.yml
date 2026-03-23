@@ -37,10 +37,11 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg2://solar_user:solar_pass@db:5432/solar_db
       OLLAMA_URL: http://ollama:11434
-      OLLAMA_MODEL: phi3.5:mini
+      OLLAMA_MODEL: phi3.5:latest
     ports:
       - "8000:8000"
     volumes:
+      - ./backend:/app/backend
       - ./backend/ml/artifacts:/app/backend/ml/artifacts
     depends_on:
       db:
@@ -101,7 +102,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: cloudflare-tunnel
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token eyJhIjoiYzcwYjZhNWJjMDFlYjI1N2U2OGVhMzA4ODJmZTI3M2MiLCJzIjoiWVRnM1ptUm1PV1l0T0dJM015MDBOVEptTFdKak56WXRNemN3Tm1ZMk5UUXpOalJtIiwidCI6IjAwOGRkNDI3LWIwNTEtNGUxNi1iMWUyLWM2NTdkMjg3NzM5NCJ9
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - frontend
 

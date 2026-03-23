@@ -566,9 +566,13 @@ class PlantSimulator:
             p_ac_i = max(0.0, base_ac + float(self.rng.normal(0, max(0.02, base_ac * 0.005))))
             p_dc_i = max(p_ac_i, base_dc + float(self.rng.normal(0, max(0.01, base_dc * 0.003))))
 
-            # expected_power: potencia base limpia (sin ruido individual ni fallas)
-            # Usar base_ac garantiza que el residual ML tenga señal real cuando hay falla
-            expected_ac = round(base_ac, 4)
+            # expected_power: potencia teórica limpia (sin soiling, sin degradación, sin fallas)
+            # Esto garantiza que el residual ML sea un detector real de anomalías de todo tipo
+            # (no solo fallas activas, sino también soiling crónico y degradación)
+            p_dc_clean  = self.physics.dc_power_kw(irr_poa, t_mod, 0.0, 0.0)
+            p_ac_clean  = self.physics.ac_power_kw(p_dc_clean)
+            expected_ac = round(p_ac_clean / inv_count, 4)
+
 
             p_dc_f, p_ac_f, fault_type, fault_sev = self.faults.apply(inv_idx, p_dc_i, p_ac_i)
             label_is_fault = 1 if fault_type else 0

@@ -116,7 +116,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(520px, 100vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', zIndex: 50, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
 
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', background: 'var(--surface-2)' }}>
+        <div className="p-4 sm:px-5 sm:py-4 border-b border-border flex flex-col sm:flex-row sm:items-start justify-between bg-surface-2 gap-3">
           <div>
             <p style={{ fontFamily: 'Syne, sans-serif', fontSize: '0.8rem', color: '#fff', letterSpacing: '0.08em', margin: 0 }}>EXPLICACIÓN XAI</p>
             <p style={{ fontSize: '0.62rem', color: 'var(--text-dim)', margin: '3px 0 0' }}>
@@ -128,7 +128,7 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
             </p>
             {result && <span style={{ marginTop: '4px', display: 'inline-block', fontSize: '0.6rem', color: result.cached ? '#58a6ff' : '#3fb950' }}>{result.cached ? '● CACHE' : '● GENERADO'}</span>}
           </div>
-          <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: '4px', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: '4px', width: '28px', height: '28px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }} className="self-end sm:self-auto">✕</button>
         </div>
 
         {/* Body */}
@@ -151,13 +151,13 @@ function XAIDrawer({ pkg, onClose }: { pkg: FaultPackage; onClose: () => void })
           {state === 'success' && result && (
             <>
               {/* Métricas */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {[
                   { label: 'MÁX. PROB.', value: result.fault_proba != null ? safePct(result.fault_proba) : '—', color: (result.fault_proba ?? 0) > 0.8 ? '#f85149' : '#f59e0b' },
                   { label: 'LECTURAS', value: String(pkg.reading_count), color: '#f59e0b', sub: 'consecutivas' },
                   { label: 'DURACIÓN', value: pkg.duration_minutes > 0 ? fmtDur(pkg.duration_minutes) : '—', color: '#fff' },
                 ].map(m => (
-                  <div key={m.label} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px' }}>
+                  <div key={m.label} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px' }} className={m.label === 'DURACIÓN' ? 'col-span-2 md:col-auto' : ''}>
                     <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: 0, letterSpacing: '0.08em' }}>{m.label}</p>
                     <p style={{ fontSize: '1.2rem', fontFamily: 'Syne, sans-serif', fontWeight: 700, margin: '2px 0 0', color: m.color }}>{m.value}</p>
                     {'sub' in m && m.sub && <p style={{ fontSize: '0.55rem', color: 'var(--text-dim)', margin: '2px 0 0' }}>{m.sub}</p>}
@@ -307,12 +307,12 @@ export default function AlertsTable({ packages }: Props) {
         </div>
 
         {/* Tabla */}
-        <div style={{ overflowX: 'auto' }}>
+        <div className="overflow-x-auto no-scrollbar">
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-dim)' }}>
                 {['INICIO → FIN', 'DURACIÓN', 'MÁX. PROB.', 'TIPO INFERIDO', 'P. ESPERADA (kW)', 'RESIDUAL (kW)', ''].map(h => (
-                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 'normal', fontSize: '0.6rem', letterSpacing: '0.06em' }}>{h}</th>
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 'normal', fontSize: '0.6rem', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
