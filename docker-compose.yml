@@ -1,4 +1,6 @@
-version: "3.9"
+networks:
+  solar-net:
+    driver: bridge
 
 services:
 
@@ -15,6 +17,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     restart: unless-stopped
+    networks:
+      - solar-net
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U solar_user -d solar_db" ]
       interval: 5s
@@ -29,11 +33,14 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
+    networks:
+      - solar-net
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
+    container_name: backend
     environment:
       DATABASE_URL: postgresql+psycopg2://solar_user:solar_pass@db:5432/solar_db
       OLLAMA_URL: http://ollama:11434
@@ -49,6 +56,8 @@ services:
       ollama:
         condition: service_started
     restart: unless-stopped
+    networks:
+      - solar-net
 
   simulator:
     build: ./solar_simulator
@@ -70,6 +79,8 @@ services:
       AUTOSTART: "False"
       SOLAR_OUTPUT_DIR: "/app/output"
     restart: "no"
+    networks:
+      - solar-net
 
   ml-trainer:
     build:
@@ -85,6 +96,8 @@ services:
     restart: "no"
     profiles:
       - train
+    networks:
+      - solar-net
 
   frontend:
     build:
@@ -97,6 +110,8 @@ services:
       backend:
         condition: service_started
     restart: unless-stopped
+    networks:
+      - solar-net
 
   cloudflare-tunnel:
     image: cloudflare/cloudflared:latest
@@ -105,6 +120,8 @@ services:
     command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - frontend
+    networks:
+      - solar-net
 
 volumes:
   postgres_data:
